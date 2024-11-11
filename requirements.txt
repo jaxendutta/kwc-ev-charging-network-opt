@@ -1,9 +1,31 @@
-gurobipy
-pandas
-geopandas
-osmnx
-numpy
-matplotlib
-jupyter
-folium
-pytest
+# Core requirements
+gurobipy>=11.0.3
+pandas>=2.2.3
+numpy>=1.26.4
+scipy>=1.14.1
+
+# Geospatial analysis
+geopandas>=0.14.4
+folium>=0.18.0
+osmnx>=1.9.4
+shapely>=2.0.6
+
+# Visualization
+matplotlib>=3.9.2
+seaborn>=0.13.2
+
+# Jupyter notebooks
+jupyter>=1.1.1
+notebook>=7.2.2
+
+# Progress bars
+tqdm>=4.67.0
+
+# Development tools
+pytest>=8.3.3
+black>=24.10.0
+flake8>=7.1.1
+
+# Web scraping
+python-dotenv>=1.0.1
+requests>=2.32.3
