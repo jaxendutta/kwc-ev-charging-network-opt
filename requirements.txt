@@ -1,0 +1,9 @@
+gurobipy
+pandas
+geopandas
+osmnx
+numpy
+matplotlib
+jupyter
+folium
+pytest
