@@ -21,12 +21,10 @@ An optimization model for placing electric vehicle charging stations in the Kitc
   - [4. Getting Started](#4-getting-started)
     - [4.1 Installation](#41-installation)
     - [4.2. Data Exploration](#42-data-exploration)
-    - [4.3. Model Development](#43-model-development)
+    - [4.3. Gather Potential Locations](#43-gather-potential-locations)
+    - [4.4. Demand Analysis](#44-demand-analysis)
+    - [4.5. Model Development](#45-model-development)
   - [5. Results and Analysis](#5-results-and-analysis)
-  - [6. Contributors](#6-contributors)
-  - [7. License](#7-license)
-
-
 
 ## 1. Project Overview
 
@@ -67,21 +65,47 @@ Our approach evolves through several stages:
 ```plaintext
 kw-ev-charging-optimization/
 ├── data/
-│   ├── raw/                      # Raw data files
-│   └── processed/                # Processed datasets
+│   ├── raw/
+│   │   ├── charging_stations/
+|   |   |   └── charging_stations_YYYY-MM-DD_HH-MM-SS.csv
+|   |   |
+│   │   ├── potential_locations/
+|   |   |   └── potential_locations_YYYY-MM-DD_HH-MM-SS.csv
+|   |   |
+│   │   ├── population_density/
+|   |   |   └── population_density_YYYY-MM-DD_HH-MM-SS.tif
+|   |   |
+│   │   └── grid_capacity/
+|   |   |   └── grid_capacity_YYYY-MM-DD_HH-MM-SS.csv
+|   |   |
+│   └── processed/
+│       ├── all_locations_CS-YYYY-MM-DD_HH-MM-SS_PL-YYYY-MM-DD_HH-MM-SS.csv
+│       └── all_locations_processed_YYYY-MM-DD_HH-MM-SS.csv
+|
 ├── notebooks/
-│   ├── 01_data_exploration.ipynb # Data analysis
-│   └── 02_model_development.ipynb# Model implementation
+│   ├── 01_data_exploration.ipynb
+│   ├── 02_potential_locations.ipynb
+│   ├── 03_demand_analysis.ipynb
+│   └── 04_optimization_model.ipynb (to be added)
+|
 ├── src/
-│   ├── data/                     # Data processing scripts
-│   ├── models/                   # Optimization models
-│   └── visualization/            # Visualization utilities
+│   ├── data/
+|   │   └── api_client.py
+│   |   └── constants.py
+│   |   └── utils.py
+|   |
+│   ├── models/
+|   |
+│   └── visualization/
+|       └── map_viz.py
+|
 ├── requirements.txt
+├── setup.py
 └── README.md
 ```
 
 ### 2.2 Data Flow
-
+(not correct -- needs updating)
 ```mermaid
 graph TD
     A[Raw Data Collection] --> B[Data Processing]
@@ -116,6 +140,11 @@ graph TD
    * OpenChargeMap API integration
    * Data validation and cleaning
    * Historical data analysis
+ - [ ] Population density data collection
+   * Download population density data in GeoTIFF format from WorldPop or NASA SEDAC
+   * Save the downloaded file in the `data/raw` directory
+- [ ] Grid capacity data collection
+  * Contact local utility company or grid operator for grid capacity data and save it in `data/raw/grid_capacity/grid_capacity_YYYY-MM-DD_HH-MM-SS.csv`.
 
 ### 3.2. Data Analysis and Processing
 - [ ] Population density analysis
@@ -205,12 +234,28 @@ This notebook will:
 - Show interactive map visualization
 - Generate initial insights
 
-### 4.3. Model Development
+### 4.3. Gather Potential Locations
+
+```bash
+jupyter notebook notebooks/02_potential_locations.ipynb
+```
+This notebook identifies potential locations for EV charging stations using OpenStreetMap data and visualizes them on a map.
+
+### 4.4. Demand Analysis
+
+```bash
+jupyter notebook notebooks/03_demand_analysis.ipynb
+```
+
+This notebook analyzes the demand and infrastructure requirements for potential charging station locations, considering factors such as population density and grid capacity.
+
+### 4.5. Model Development
 Launch the model development notebook.
 
 ```bash
-jupyter notebook notebooks/02_model_development.ipynb
+jupyter notebook notebooks/04_optimization_model.ipynb
 ```
+(to be added)
 
 This notebook will:
 
@@ -221,13 +266,4 @@ This notebook will:
 
 ## 5. Results and Analysis
 
-[To be added]
-
-## 6. Contributors
-- [Jaxen Dutta](https://github.com/jaxendutta) / [a9dutta](mailto:a9dutta@uwaterloo.ca)
-- Sabeer Ghura / [sghura](mailto:sghura@uwaterloo.ca)
-- Kevin Ke / [q4ke](mailto:q4ke@uwaterloo.ca)
-- Leslie Shen / [l72shen](mailto:l72shen@uwaterloo.ca)
-
-## 7. License
-
+The results and analysis of the demand assessment and optimization model will be added here upon completion of the respective project steps.

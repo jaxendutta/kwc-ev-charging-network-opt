@@ -17,12 +17,13 @@ notebooks/cache
 *.code-workspace
 
 # Data
-data/raw/*
-data/processed/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
+data/
+!src/data/
 
 # Gurobi
 *.lp
 *.mps
 *.sol
+
+# Package
+kw_ev_opt.egg-info/

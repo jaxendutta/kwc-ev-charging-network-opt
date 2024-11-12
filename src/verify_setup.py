@@ -11,9 +11,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from importlib.metadata import version, PackageNotFoundError
-
-# Get project root 
-PROJECT_ROOT = Path(__file__).parent.parent.absolute()
+import data.constants as const
 
 def check_python_version():
     """Check if Python version meets requirements."""
@@ -47,7 +45,7 @@ def check_gurobi_license():
 
 def check_dependencies():
     """Check if all required packages are installed and install if missing."""
-    requirements_file = PROJECT_ROOT / "requirements.txt"
+    requirements_file = const.PROJECT_ROOT / "requirements.txt"
     
     if not requirements_file.exists():
         print(f"\n✗ requirements.txt not found at {requirements_file}")
@@ -65,9 +63,9 @@ def check_dependencies():
             pkg_requirement = requirement.strip()
             pkg_name = pkg_requirement.split('>=')[0].strip()
             try:
-                __import__(pkg_name)
-                print(f"✓ {pkg_name} OK")
-            except ImportError:
+                pkg_version = version(pkg_name)
+                print(f"✓ {pkg_name} (version {pkg_version})")
+            except PackageNotFoundError:
                 print(f"✗ {pkg_name} not installed")
                 missing_packages.append(pkg_requirement)
                 all_satisfied = False
@@ -91,62 +89,110 @@ def check_directory_structure():
     """Check if the required directory structure exists."""
     print("\nChecking directory structure...")
     required_dirs = [
-        PROJECT_ROOT / 'data/raw',
-        PROJECT_ROOT / 'data/processed',
-        PROJECT_ROOT / 'notebooks',
-        PROJECT_ROOT / 'src/models',
-        PROJECT_ROOT / 'src/data',
-        PROJECT_ROOT / 'src/visualization'
+        const.CHARGING_STATIONS_DIR,
+        const.POTENTIAL_LOCATIONS_DIR,
+        const.POPULATION_DENSITY_DIR,
+        const.GRID_CAPACITY_DIR,
+        const.PROCESSED_DATA_DIR,
     ]
     
     all_exist = True
     for directory in required_dirs:
         if directory.exists():
-            print(f"✓ {directory.relative_to(PROJECT_ROOT)} exists")
+            print(f"✓ {directory}")
         else:
-            print(f"✗ {directory.relative_to(PROJECT_ROOT)} missing")
+            print(f"✗ {directory} missing")
             all_exist = False
             try:
                 directory.mkdir(parents=True)
-                print(f"  Created {directory.relative_to(PROJECT_ROOT)}")
+                print(f"  Created {directory}")
             except Exception as e:
-                print(f"  Error creating {directory.relative_to(PROJECT_ROOT)}: {str(e)}")
+                print(f"  Error creating {directory}: {str(e)}")
     
     return all_exist
 
-def check_data_files():
-    """Check if necessary data files exist."""
-    print("\nChecking data files...")
+def check_source_code_files():
+    """Check if necessary source code files exist."""
+    print("\nChecking source code files...")
     required_files = [
-        PROJECT_ROOT / 'notebooks/01_data_exploration.ipynb',
-        PROJECT_ROOT / 'notebooks/02_model_development.ipynb',
-        PROJECT_ROOT / 'src/models/facility_location.py',
-        PROJECT_ROOT / 'src/data/load_data.py'
+        const.NOTEBOOKS_DIR / '01_data_exploration.ipynb',
+        const.NOTEBOOKS_DIR / '02_potential_locations.ipynb',
+        const.NOTEBOOKS_DIR / '03_demand_analysis.ipynb',
+        const.SRC_DATA_DIR / 'utils.py',
+        const.SRC_DATA_DIR / 'constants.py',
+        const.SRC_DATA_DIR / 'api_client.py',
+        const.SRC_MODELS_DIR / 'facility_location.py',
+        const.SRC_VISUALIZATION_DIR / 'map_viz.py'
     ]
     
     all_exist = True
     for file in required_files:
         if file.exists():
-            print(f"✓ {file.relative_to(PROJECT_ROOT)} exists")
+            print(f"✓ {file}")
         else:
-            print(f"✗ {file.relative_to(PROJECT_ROOT)} missing")
+            print(f"✗ {file} missing")
             all_exist = False
     
     return all_exist
+
+def check_api_keys():
+    """Check if required API keys are set as environment variables."""
+    print("\nChecking API keys...")
+    required_api_keys = [
+        'OCMAP_API_KEY'
+    ]
+    
+    all_set = True
+    for api_key in required_api_keys:
+        if os.getenv(api_key):
+            print(f"✓ {api_key} is set")
+        else:
+            print(f"✗ {api_key} is not set")
+            all_set = False
+    
+    return all_set
+
+def check_openstreetmap_api():
+    """Checks if the OpenStreetMap API is accessible."""
+    print("\nChecking OpenStreetMap API connectivity...")
+    try:
+        import osmnx as ox
+        ox.settings.use_cache=False
+        ox.geocode('Kitchener, Ontario, Canada')
+        print("✓ OpenStreetMap API is accessible")
+        return True
+    except Exception as e:
+        print(f"✗ OpenStreetMap API error: {str(e)}")
+        return False
+
+def check_openchargemap_api():
+    """Check if the OpenChargeMap API is accessible."""
+    print("\nChecking OpenChargeMap API connectivity...")
+    try:
+        from data.api_client import OpenChargeMapClient
+        OpenChargeMapClient().fetch_stations()
+        print("✓ OpenChargeMap API is accessible")
+        return True
+    except Exception as e:
+        print(f"✗ OpenChargeMap API error: {str(e)}")
+        return False
 
 def main():
     """Run all verification checks."""
     print("=" * 60)
     print("KW EV Charging Station Optimization - Setup Verification")
-    print(f"Project Root: {PROJECT_ROOT}")
+    print(f"Project Root: {const.PROJECT_ROOT}")
     print("=" * 60)
     
     checks = [
         check_python_version(),
         check_gurobi_license(),
+        check_api_keys(),
+        check_openstreetmap_api(),
+        check_openchargemap_api(),
         check_dependencies(),
         check_directory_structure(),
-        check_data_files()
+        check_source_code_files()
     ]
     
     print("\n" + "=" * 60)

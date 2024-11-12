@@ -74,12 +74,55 @@ def plot_potential_locations(m: folium.Map, locations_gdf: gpd.GeoDataFrame) -> 
     """Plot potential locations on the map."""
     for idx, row in locations_gdf.iterrows():
         if row.geometry.geom_type == 'Point':
-            popup_content = f"<b>{row['name']}</b><br>Type: {row['type']}"
+            popup_content = f"<b>{row.get('name', 'Unknown')}</b><br>Type: {row.get('location_type', 'Unknown')}"
             
             folium.Marker(
                 location=[row.geometry.y, row.geometry.x],
                 popup=folium.Popup(popup_content, max_width=300),
                 icon=folium.Icon(color='blue', icon='info-sign')
             ).add_to(m)
+    
+    return m
+
+def plot_heatmap(m: folium.Map, data_gdf: gpd.GeoDataFrame, 
+                 value_column: str, legend_name: str, radius: int = 15) -> folium.Map:
+    """Add a heatmap layer to the map."""
+    locations = [[point.y, point.x] for point in data_gdf.geometry]
+    values = data_gdf[value_column].tolist()
+    
+    folium.plugins.HeatMap(
+        locations,
+        weights=values,
+        name=legend_name,
+        radius=radius,
+        max_zoom=13,
+        gradient={0.4: 'blue', 0.65: 'lime', 1: 'red'}
+    ).add_to(m)
+    
+    return m
+
+def plot_traffic_flow(m: folium.Map, traffic_gdf: gpd.GeoDataFrame, 
+                     value_column: str) -> folium.Map:
+    """Add traffic flow visualization to the map."""
+    def get_color(value):
+        """Get color based on traffic value."""
+        if value > 2000:
+            return 'red'
+        elif value > 1000:
+            return 'orange'
+        else:
+            return 'green'
+    
+    def get_weight(value):
+        """Get line weight based on traffic value."""
+        return 2 + (value / 500)
+    
+    for idx, row in traffic_gdf.iterrows():
+        folium.PolyLine(
+            locations=[[coord[1], coord[0]] for coord in row.geometry.coords],
+            color=get_color(row[value_column]),
+            weight=get_weight(row[value_column]),
+            popup=f"Traffic flow: {row[value_column]:,.0f}"
+        ).add_to(m)
     
     return m

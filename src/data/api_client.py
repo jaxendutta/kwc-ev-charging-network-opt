@@ -1,67 +1,62 @@
-"""Client for fetching data from OpenChargeMap API."""
+"""Unified client for fetching data from various APIs for EV charging station optimization."""
 import os
 from typing import Dict, List, Optional
 import requests
 import pandas as pd
-from pathlib import Path
+import numpy as np
+import geopandas as gpd
 from dotenv import load_dotenv
+import osmnx as ox
+from shapely.geometry import Point
+from .constants import KW_BOUNDS, API_TIMEOUT, MAX_RESULTS
+from .utils import grab_time, get_file_timestamp
 
-class OpenChargeMapClient:
+class APIClient:
+    """Unified client for data collection from various APIs."""
+    
     def __init__(self):
-        # Load API key
         load_dotenv()
-        self.api_key = os.getenv("OCMAP_API_KEY")
-        
-        if not self.api_key:
+        # OpenChargeMap API key
+        self.ocmap_api_key = os.getenv("OCMAP_API_KEY")
+        if not self.ocmap_api_key:
             raise ValueError("OpenChargeMap API key not found in environment variables")
-        
-        # KW region bounds
-        self.kw_bounds = {
-            'north': 43.5445,
-            'south': 43.3839,
-            'east': -80.4013,
-            'west': -80.6247
-        }
-        
-        self.base_url = "https://api.openchargemap.io/v3"
+            
+        # Base URLs
+        self.ocmap_base_url = "https://api.openchargemap.io/v3"
+        self.census_base_url = "https://www12.statcan.gc.ca/rest/census-recensement/2021/dp-pd/prof/details"
 
-    def fetch_stations(self, force_refresh: bool = False) -> pd.DataFrame:
-        """Fetch charging stations in KW region."""
-        cache_file = Path('data/raw/charging_stations.csv')
-
-        # Create the directory if it doesn't exist
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        
-        if not force_refresh and cache_file.exists():
-            return pd.read_csv(cache_file)
-        
+    def fetch_charging_stations(self) -> pd.DataFrame:
+        """Fetch charging stations in KW region from OpenChargeMap."""
         print("Fetching charging station data...")
         
         params = {
-            'key': self.api_key,
-            'maxresults': 100,
-            'latitude': (self.kw_bounds['north'] + self.kw_bounds['south']) / 2,
-            'longitude': (self.kw_bounds['east'] + self.kw_bounds['west']) / 2,
+            'key': self.ocmap_api_key,
+            'maxresults': MAX_RESULTS,
+            'latitude': (KW_BOUNDS['north'] + KW_BOUNDS['south']) / 2,
+            'longitude': (KW_BOUNDS['east'] + KW_BOUNDS['west']) / 2,
             'distance': 10,
             'distanceunit': 'KM',
             'countrycode': 'CA'
         }
         
-        response = requests.get(f"{self.base_url}/poi", params=params)
+        response = requests.get(
+            f"{self.ocmap_base_url}/poi", 
+            params=params, 
+            timeout=API_TIMEOUT
+        )
         data = response.json()
         
         stations = []
         for poi in data:
             address_info = poi.get('AddressInfo', {})
-            operator = poi.get('OperatorInfo', {})
             connections = poi.get('Connections', [])
             
             lat = address_info.get('Latitude')
             lon = address_info.get('Longitude')
             
             # Only include stations in KW region
-            if (self.kw_bounds['south'] <= lat <= self.kw_bounds['north'] and
-                self.kw_bounds['west'] <= lon <= self.kw_bounds['east']):
+            if (KW_BOUNDS['south'] <= lat <= KW_BOUNDS['north'] and
+                KW_BOUNDS['west'] <= lon <= KW_BOUNDS['east']):
                 
                 operator = poi.get('OperatorInfo')
                 stations.append({
@@ -74,13 +69,137 @@ class OpenChargeMapClient:
                     'address': address_info.get('AddressLine1'),
                     'city': address_info.get('Town'),
                     'postal_code': address_info.get('Postcode'),
-                    'usage_cost': self._extract_usage_cost(poi.get('UsageCost'))
+                    'usage_cost': self._extract_usage_cost(poi.get('UsageCost')),
+                    'data_source': 'OpenChargeMap',
+                    'location_type': 'charging_station'
                 })
         
         df = pd.DataFrame(stations)
-        df.to_csv(cache_file, index=False)
         print(f"Found {len(df)} stations in KW region")
         return df
+
+    def fetch_potential_locations(self) -> pd.DataFrame:
+        """Fetch potential locations from OpenStreetMap."""
+        print("Fetching potential locations data...")
+        
+        # Define OSM tags for potential locations
+        tags = {
+            'amenity': ['parking', 'fuel'],
+            'building': ['retail', 'commercial']
+        }
+        
+        # Download POIs using OSMnx
+        ox.settings.use_cache = False
+        pois = ox.features_from_place(
+            "Kitchener, Ontario, Canada", 
+            tags=tags
+        )
+        
+        # Convert to GeoDataFrame and process
+        potential_locations_gdf = gpd.GeoDataFrame(pois)
+        
+        # Extract coordinates based on geometry type
+        def get_coords(geom):
+            """Extract representative coordinates from different geometry types."""
+            if geom.geom_type == 'Point':
+                return geom.y, geom.x
+            elif geom.geom_type == 'Polygon':
+                # Use centroid for polygons
+                return geom.centroid.y, geom.centroid.x
+            elif geom.geom_type == 'LineString':
+                # Use midpoint for lines
+                return geom.centroid.y, geom.centroid.x
+            elif geom.geom_type == 'MultiPolygon':
+                # Use centroid of largest polygon
+                largest = max(geom.geoms, key=lambda x: x.area)
+                return largest.centroid.y, largest.centroid.x
+            else:
+                # Default to centroid for any other type
+                return geom.centroid.y, geom.centroid.x
+        
+        # Apply coordinate extraction
+        coords = potential_locations_gdf.geometry.apply(get_coords)
+        potential_locations_gdf['latitude'] = coords.apply(lambda x: x[0])
+        potential_locations_gdf['longitude'] = coords.apply(lambda x: x[1])
+        
+        # Create unified schema matching charging stations
+        processed_locations = []
+        for _, row in potential_locations_gdf.iterrows():
+            location_type = row.get('amenity') if pd.notnull(row.get('amenity')) else row.get('building')
+            location_type = location_type if pd.notnull(location_type) else 'commercial'
+            
+            # Get area if available (for polygons)
+            area = row.geometry.area if hasattr(row.geometry, 'area') else None
+            
+            processed_locations.append({
+                'name': row.get('name', f"{location_type.title()} Location"),
+                'latitude': row['latitude'],
+                'longitude': row['longitude'],
+                'address': row.get('addr:street', 'Unknown'),
+                'city': row.get('addr:city', 'Unknown'),
+                'postal_code': row.get('addr:postcode', 'Unknown'),
+                'data_source': 'OpenStreetMap',
+                'location_type': location_type,
+                'area': area,
+                'geometry_type': row.geometry.geom_type
+            })
+        
+        df = pd.DataFrame(processed_locations)
+        print(f"Found {len(df)} potential locations in KW region")
+        print("\nGeometry types found:")
+        print(df['geometry_type'].value_counts())
+        return df
+
+    def fetch_population_density(self) -> pd.DataFrame:
+        """Fetch population density data from Statistics Canada Census API."""
+        print("Fetching population density data...")
+        
+        # Dissemination area codes for KW region
+        # Kitchener CSD: 3530013
+        # Waterloo CSD: 3530016
+        params = {
+            'dguid': ['2021S0503530013', '2021S0503530016'],
+            'topic': 1,  # Population topics
+            'format': 'json'
+        }
+        
+        try:
+            response = requests.get(
+                self.census_base_url,
+                params=params,
+                timeout=API_TIMEOUT
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Process census data
+                population_data = []
+                for area in data['data']:
+                    # Extract geographic coordinates for the dissemination area
+                    lat = float(area['geometry']['coordinates'][1])
+                    lon = float(area['geometry']['coordinates'][0])
+                    
+                    # Only include points within KW bounds
+                    if (KW_BOUNDS['south'] <= lat <= KW_BOUNDS['north'] and
+                        KW_BOUNDS['west'] <= lon <= KW_BOUNDS['east']):
+                        
+                        population_data.append({
+                            'latitude': lat,
+                            'longitude': lon,
+                            'population': int(area['population']),
+                            'area_sq_km': float(area['area']),
+                            'population_density': int(area['population']) / float(area['area'])
+                        })
+                
+                return pd.DataFrame(population_data)
+            else:
+                print(f"Census API error: {response.status_code}")
+                return self._get_sample_population_data()
+                
+        except Exception as e:
+            print(f"Error fetching census data: {e}")
+            return self._get_sample_population_data()
     
     def _determine_charger_type(self, connections: Optional[List[Dict]]) -> str:
         """Determine the highest level charger available."""
@@ -109,3 +228,28 @@ class OpenChargeMapClient:
         cost = cost.strip()
         
         return cost if cost else 'Unknown'
+    
+    def _get_sample_population_data(self) -> pd.DataFrame:
+        """Generate sample population density data for testing."""
+        print("Warning: Using sample population density data...")
+        
+        # Create grid of points covering KW region
+        lats = np.linspace(KW_BOUNDS['south'], KW_BOUNDS['north'], 50)
+        lons = np.linspace(KW_BOUNDS['west'], KW_BOUNDS['east'], 50)
+        
+        data = []
+        for lat in lats:
+            for lon in lons:
+                # Higher density near city centers
+                center_dist = np.sqrt(
+                    (lat - 43.4516)**2 + (lon - (-80.4925))**2
+                )
+                density = max(0, 5000 * (1 - center_dist/0.1) + np.random.normal(0, 500))
+                
+                data.append({
+                    'latitude': lat,
+                    'longitude': lon,
+                    'population_density': density
+                })
+        
+        return pd.DataFrame(data)
