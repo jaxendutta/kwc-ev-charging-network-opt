@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from importlib.metadata import version, PackageNotFoundError
-import data.constants as const
+from data.constants import *
 
 def check_python_version():
     """Check if Python version meets requirements."""
@@ -45,7 +45,7 @@ def check_gurobi_license():
 
 def check_dependencies():
     """Check if all required packages are installed and install if missing."""
-    requirements_file = const.PROJECT_ROOT / "requirements.txt"
+    requirements_file = PROJECT_ROOT / "requirements.txt"
     
     if not requirements_file.exists():
         print(f"\n✗ requirements.txt not found at {requirements_file}")
@@ -87,19 +87,12 @@ def check_dependencies():
 
 def check_directory_structure():
     """Check if the required directory structure exists."""
-    print("\nChecking directory structure...")
-    required_dirs = [
-        const.CHARGING_STATIONS_DIR,
-        const.POTENTIAL_LOCATIONS_DIR,
-        const.POPULATION_DENSITY_DIR,
-        const.GRID_CAPACITY_DIR,
-        const.PROCESSED_DATA_DIR,
-    ]
+    print("\nChecking data files directory structure...")
     
     all_exist = True
-    for directory in required_dirs:
+    for directory_name, directory in DATA_PATHS.items():
         if directory.exists():
-            print(f"✓ {directory}")
+            print(f"✓ {directory_name}")
         else:
             print(f"✗ {directory} missing")
             all_exist = False
@@ -114,19 +107,9 @@ def check_directory_structure():
 def check_source_code_files():
     """Check if necessary source code files exist."""
     print("\nChecking source code files...")
-    required_files = [
-        const.NOTEBOOKS_DIR / '01_data_exploration.ipynb',
-        const.NOTEBOOKS_DIR / '02_potential_locations.ipynb',
-        const.NOTEBOOKS_DIR / '03_demand_analysis.ipynb',
-        const.SRC_DATA_DIR / 'utils.py',
-        const.SRC_DATA_DIR / 'constants.py',
-        const.SRC_DATA_DIR / 'api_client.py',
-        const.SRC_MODELS_DIR / 'facility_location.py',
-        const.SRC_VISUALIZATION_DIR / 'map_viz.py'
-    ]
-    
+        
     all_exist = True
-    for file in required_files:
+    for file in SOURCE_CODE_FILES:
         if file.exists():
             print(f"✓ {file}")
         else:
@@ -169,8 +152,8 @@ def check_openchargemap_api():
     """Check if the OpenChargeMap API is accessible."""
     print("\nChecking OpenChargeMap API connectivity...")
     try:
-        from data.api_client import OpenChargeMapClient
-        OpenChargeMapClient().fetch_stations()
+        from data.api_client import APIClient
+        APIClient().fetch_charging_stations()
         print("✓ OpenChargeMap API is accessible")
         return True
     except Exception as e:
@@ -181,7 +164,7 @@ def main():
     """Run all verification checks."""
     print("=" * 60)
     print("KW EV Charging Station Optimization - Setup Verification")
-    print(f"Project Root: {const.PROJECT_ROOT}")
+    print(f"Project Root: {PROJECT_ROOT}")
     print("=" * 60)
     
     checks = [

@@ -12,6 +12,56 @@ def create_kw_map():
         tiles='cartodbpositron'
     )
 
+def add_legend_to_map(m: folium.Map, color_map: dict) -> folium.Map:
+    """Add a legend to the map."""
+    legend_html = f"""
+    <div style="position: fixed; 
+                bottom: 50px; 
+                left: 50px; 
+                z-index: 1000; 
+                background-color: white; 
+                padding: 10px; 
+                border: 2px solid grey; 
+                border-radius: 5px;">
+    """
+    
+    for loc_type, color in color_map.items():
+        legend_html += f"<p style='margin: 2px 0;'><span style='color: {color};'>●</span> {loc_type}</p>"
+    
+    legend_html += "</div>"
+    m.get_root().html.add_child(Element(legend_html))
+    
+    return m
+
+def folium_pop_up_html(row: pd.Series, charger: bool) -> str:
+    """Create a popup HTML content for a charging station or potential location."""
+    if charger:
+        content = f"""
+        <div style="font-family: Arial; max-width: 300px;">
+            <h4 style="margin-bottom: 5px;">{row.get('name', 'Unnamed Station')}</h4>
+            <p style="margin: 2px 0;"><b>Type:</b> {row.get('charger_type', 'Unknown')}</p>
+            <p style="margin: 2px 0;"><b>Chargers:</b> {row.get('num_chargers', 'Unknown')}</p>
+            <p style="margin: 2px 0;"><b>Operator:</b> {row.get('operator', 'Unknown')}</p>
+            <p style="margin: 2px 0;"><b>Cost:</b> {row.get('usage_cost', 'Unknown')}</p>
+            <hr style="margin: 5px 0;">
+            <p style="margin: 2px 0;"><small>{row.get('address', '')}<br>
+            {row.get('city', '')}, {row.get('postal_code', '')}</small></p>
+        </div>
+        """
+    else:
+        content = f"""
+        <div style="font-family: Arial; max-width: 300px;">
+            <h4 style="margin-bottom: 5px;">{row.get('name', 'Unnamed Location')}</h4>
+            <p style="margin: 2px 0;"><b>Type:</b> {row.get('location_type', 'Unknown')}</p>
+            <p style="margin: 2px 0;"><b>Address:</b> {row.get('address', 'Unknown')}</p>
+            <p style="margin: 2px 0;"><b>City:</b> {row.get('city', 'Unknown')}</p>
+            <p style="margin: 2px 0;"><b>Postal Code:</b> {row.get('postal_code', 'Unknown')}</p>
+            <hr style="margin: 5px 0;">
+            <p style="margin: 2px 0;"><small>{row.get('description', '')}</small></p>
+        </div>
+        """
+    return content
+
 def plot_charging_stations(m: folium.Map, stations_df: pd.DataFrame) -> folium.Map:
     """Plot charging stations on map with detailed popups."""
     
@@ -24,20 +74,7 @@ def plot_charging_stations(m: folium.Map, stations_df: pd.DataFrame) -> folium.M
     }
     
     for idx, row in stations_df.iterrows():
-        # Create detailed popup content
-        popup_content = f"""
-        <div style="font-family: Arial; max-width: 300px;">
-            <h4 style="margin-bottom: 5px;">{row.get('name', 'Unnamed Station')}</h4>
-            <p style="margin: 2px 0;"><b>Type:</b> {row.get('charger_type', 'Unknown')}</p>
-            <p style="margin: 2px 0;"><b>Chargers:</b> {row.get('num_chargers', 'Unknown')}</p>
-            <p style="margin: 2px 0;"><b>Operator:</b> {row.get('operator', 'Unknown')}</p>
-            <p style="margin: 2px 0;"><b>Cost:</b> {row.get('usage_cost', 'Unknown')}</p>
-            <hr style="margin: 5px 0;">
-            <p style="margin: 2px 0;"><small>{row.get('address', '')}<br>
-            {row.get('city', '')}, {row.get('postal_code', '')}</small></p>
-        </div>
-        """
-        
+        popup_content = folium_pop_up_html(row, charger=True)       
         folium.CircleMarker(
             location=[row['latitude'], row['longitude']],
             radius=8,
@@ -47,41 +84,52 @@ def plot_charging_stations(m: folium.Map, stations_df: pd.DataFrame) -> folium.M
         ).add_to(m)
     
     # Add legend with statistics
-    stats_html = f"""
-    <div style="position: fixed; 
-                bottom: 50px; 
-                left: 50px; 
-                z-index: 1000; 
-                background-color: white; 
-                padding: 10px; 
-                border: 2px solid grey; 
-                border-radius: 5px;">
-        <h4 style="margin: 0 0 10px 0;">Charging Stations</h4>
-        <p style="margin: 2px 0;"><span style='color: blue;'>●</span> Level 1: {len(stations_df[stations_df['charger_type']=='Level 1'])}</p>
-        <p style="margin: 2px 0;"><span style='color: green;'>●</span> Level 2: {len(stations_df[stations_df['charger_type']=='Level 2'])}</p>
-        <p style="margin: 2px 0;"><span style='color: red;'>●</span> Level 3: {len(stations_df[stations_df['charger_type']=='Level 3'])}</p>
-        <p style="margin: 2px 0;"><span style='color: gray;'>●</span> Unknown: {len(stations_df[stations_df['charger_type']=='Unknown'])}</p>
-        <hr style="margin: 5px 0;">
-        <p style="margin: 2px 0;"><b>Total Stations:</b> {len(stations_df)}</p>
-        <p style="margin: 2px 0;"><b>Total Chargers:</b> {stations_df['num_chargers'].sum()}</p>
-    </div>
-    """
-    m.get_root().html.add_child(Element(stats_html))
-    
+    # Use add_legend_to_map function
+    m = add_legend_to_map(m, colors)
+
     return m
 
-def plot_potential_locations(m: folium.Map, locations_gdf: gpd.GeoDataFrame) -> folium.Map:
-    """Plot potential locations on the map."""
-    for idx, row in locations_gdf.iterrows():
-        if row.geometry.geom_type == 'Point':
-            popup_content = f"<b>{row.get('name', 'Unknown')}</b><br>Type: {row.get('location_type', 'Unknown')}"
-            
-            folium.Marker(
-                location=[row.geometry.y, row.geometry.x],
-                popup=folium.Popup(popup_content, max_width=300),
-                icon=folium.Icon(color='blue', icon='info-sign')
-            ).add_to(m)
-    
+def plot_potential_locations(m: folium.Map, locations_gdf: gpd.GeoDataFrame, column=None) -> folium.Map:
+    """Plots potential locations on the map, optionally color-coded by a column.
+
+    Args:
+        m: The Folium map object.
+        locations_gdf: GeoDataFrame containing location data.
+        column: Optional column name to use for color-coding.
+
+    Returns:
+        The updated Folium map object.
+    """
+    # List of predefined colors supported by Folium
+    colors = ['blue', 'green', 'red', 'purple', 'orange', 'darkred', 'lightred', 
+              'beige', 'darkblue', 'darkgreen', 'cadetblue', 'darkpurple', 'pink', 
+              'lightblue', 'lightgreen', 'gray', 'black', 'lightgray']
+
+    if column:
+        location_types = locations_gdf[column].unique()
+        color_map = {loc_type: colors[i % len(colors)] for i, loc_type in enumerate(location_types)}
+
+        for idx, row in locations_gdf.iterrows():
+            if row.geometry.geom_type == 'Point':
+                popup_content = folium_pop_up_html(row, charger=False)
+                folium.Marker(
+                    location=[row.geometry.y, row.geometry.x],
+                    popup=folium.Popup(popup_content, max_width=300),
+                    icon=folium.Icon(color=color_map[row[column]], icon='info-sign')
+                ).add_to(m)
+
+        m = add_legend_to_map(m, color_map)
+
+    else:
+        for idx, row in locations_gdf.iterrows():
+            if row.geometry.geom_type == 'Point':
+                popup_content = folium_pop_up_html(row, charger=False)
+                folium.Marker(
+                    location=[row.geometry.y, row.geometry.x],
+                    popup=folium.Popup(popup_content, max_width=300),
+                    icon=folium.Icon(color='blue', icon='info-sign')
+                ).add_to(m)
+
     return m
 
 def plot_heatmap(m: folium.Map, data_gdf: gpd.GeoDataFrame, 
