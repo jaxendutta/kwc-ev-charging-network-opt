@@ -30,3 +30,7 @@ flake8>=7.1.1
 # Web scraping
 python-dotenv>=1.0.1
 requests>=2.32.3
+ratelimit>=2.2.1
+
+fastparquet>=2024.11.0
+pyarrow>=18.0.0

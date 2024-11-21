@@ -34,6 +34,10 @@ Attributes:
 """
 
 from pathlib import Path
+import folium
+
+# Supported folium colours
+FOLIUM_COLORS = (lambda: list(folium.Icon.color_options))()
 
 # Project structure
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -49,36 +53,255 @@ SRC_VISUALIZATION_DIR = PROJECT_ROOT / 'src/visualization'
 DATA_PATHS = {
     'charging_stations': RAW_DATA_DIR / 'charging_stations',
     'potential_locations': RAW_DATA_DIR / 'potential_locations',
-    'population_density': RAW_DATA_DIR / 'population_density',
-    'grid_capacity': RAW_DATA_DIR / 'grid_capacity',
-    'all_locations': PROCESSED_DATA_DIR / 'all_locations',
-    'analyzed_locations': PROCESSED_DATA_DIR / 'analyzed_locations',
-    'population_analysis': PROCESSED_DATA_DIR / 'population_analysis'
+    'population': RAW_DATA_DIR / 'population',
+    'integrated_analyzed_data': PROCESSED_DATA_DIR / 'integrated_analyzed_data'
 }
 
 # Source code files
 SOURCE_CODE_FILES = [
-    NOTEBOOKS_DIR / '01_data_collection_and_exploration.ipynb',
+    NOTEBOOKS_DIR / '01_data_collection.ipynb',
     NOTEBOOKS_DIR / '02_demand_analysis.ipynb',
     SRC_DATA_DIR / 'utils.py',
     SRC_DATA_DIR / 'constants.py',
-    SRC_DATA_DIR / 'api_client.py',
+    SRC_DATA_DIR / 'data_manager.py',
     SRC_MODELS_DIR / 'facility_location.py',
     SRC_VISUALIZATION_DIR / 'map_viz.py'
 ]
-
-# KW Region bounds
-KW_BOUNDS = {
-    'north': 43.5445,  # Northern boundary of Waterloo
-    'south': 43.3839,  # Southern boundary of Kitchener
-    'east': -80.4013,  # Eastern boundary
-    'west': -80.6247   # Western boundary
-}
 
 # Area parameters
 KW_CENTER = [43.4516, -80.4925]  # Center of KW region
 SEARCH_RADIUS_KM = 10  # Radius for searching amenities
 
+# KWC Cities and Townships
+KWC_CITIES = [
+    'Waterloo, Ontario',
+    'Kitchener, Ontario',
+    'Cambridge, Ontario',
+    'Wilmot, Ontario', 
+    'Woolwich, Ontario', 
+    'North Dumfries, Ontario', 
+    'Wellesley, Ontario']
+
 # API configurations
 API_TIMEOUT = 10  # seconds
 MAX_RESULTS = 500
+
+# Lcation type dictionary
+grouped_location_types = {
+    # Parking
+    'parking': 'parking',
+
+    # Retail
+    'antiques': 'retail',
+    'appliance': 'retail',
+    'cannabis': 'retail',
+    'clothes': 'retail',
+    'computer;electronics': 'retail',
+    'convenience': 'retail',
+    'craft': 'retail',
+    'department_store': 'retail',
+    'doityourself': 'retail',
+    'e-cigarette': 'retail',
+    'electronics': 'retail',
+    'fabric': 'retail',
+    'furniture': 'retail',
+    'garden_centre': 'retail',
+    'general': 'retail',
+    'hardware': 'retail',
+    'interior_decoration': 'retail',
+    'machine_tools': 'retail',
+    'mall': 'retail',
+    'marketplace': 'retail',
+    'musical_instrument': 'retail',
+    'outdoor': 'retail',
+    'pet': 'retail',
+    'retail': 'retail',
+    'second_hand': 'retail',
+    'shoes': 'retail',
+    'stationery': 'retail',
+    'toys': 'retail',
+    'vacuum_cleaner': 'retail',
+    'variety_store': 'retail',
+    'wholesale': 'retail',
+
+    # Commercial
+    'commercial': 'commercial',
+
+    # Fuel
+    'fuel': 'fuel',
+
+    # Supermarket
+    'supermarket': 'supermarket',
+
+    # Food
+    'bakery': 'food',
+    'butcher': 'food',
+    'cafe': 'food',
+    'confectionery': 'food',
+    'deli': 'food',
+    'farm': 'food',
+    'fast_food': 'food',
+    'frozen_food': 'food',
+    'greengrocer': 'food',
+    'ice_cream': 'food',
+    'nutrition_supplements': 'food',
+    'restaurant': 'food',
+
+    # Automotive
+    'bicycle': 'automotive',
+    'car': 'automotive',
+    'car_repair': 'automotive',
+    'car_wash': 'automotive',
+    'caravan': 'automotive',
+    'motorcycle': 'automotive',
+    'tyres': 'automotive',
+
+    # Charging Stations
+    'charging_station': 'charging_station',
+
+    # Services
+    'bank': 'services',
+    'charity': 'services',
+    'clinic': 'services',
+    'collector': 'services',
+    'community_centre': 'services',
+    'copyshop': 'services',
+    'dentist': 'services',
+    'doctors': 'services',
+    'drinking_water': 'services',
+    'driving_school': 'services',
+    'funeral_directors': 'services',
+    'groundskeeping': 'services',
+    'hairdresser': 'services',
+    'locksmith': 'services',
+    'optician': 'services',
+    'pet_grooming': 'services',
+    'pharmacy': 'services',
+    'product_pickup': 'services',
+    'rental': 'services',
+    'spa': 'services',
+    'tailor': 'services',
+    'taxi': 'services',
+    'veterinary': 'services',
+    'weight_loss': 'services',
+
+    # Vacant
+    'vacant': 'vacant',
+
+    # Entertainment
+    'alcohol': 'entertainment',
+    'art': 'entertainment',
+    'bar': 'entertainment',
+    'brothel': 'entertainment',
+    'cinema': 'entertainment',
+    'dojo': 'entertainment',
+    'erotic': 'entertainment',
+    'events_venue': 'entertainment',
+    'music': 'entertainment',
+    'nightclub': 'entertainment',
+    'pub': 'entertainment',
+    'sports': 'entertainment',
+    'theatre': 'entertainment',
+    'wine': 'entertainment',
+}
+
+# Icons Dictionary
+icons = {
+    'school': 'graduation-cap',
+    'park': 'tree',
+    'restaurant': 'cutlery',
+    'shopping': 'shopping-cart',
+    'parking': 'car',
+    'retail': 'shopping-cart',
+    'commercial': 'building',
+    'fuel': 'gas-pump',
+    'supermarket': 'shopping-basket',
+    'fast_food': 'hamburger',
+    'charging_station': 'bolt',
+    'cafe': 'coffee',
+    'convenience': 'shopping-bag',
+    'car': 'car',
+    'bank': 'university',
+    'alcohol': 'glass-martini',
+    'pharmacy': 'medkit',
+    'car_repair': 'wrench',
+    'doityourself': 'toolbox',
+    'clothes': 'tshirt',
+    'pub': 'beer',
+    'mall': 'shopping-mall',
+    'department_store': 'store-alt',
+    'variety_store': 'store-alt',
+    'hairdresser': 'cut',
+    'furniture': 'couch',
+    'dentist': 'tooth',
+    'electronics': 'tv',
+    'marketplace': 'store',
+    'vacant': 'ban',
+    'car_wash': 'shower',
+    'cinema': 'film',
+    'wholesale': 'warehouse',
+    'hardware': 'hammer',
+    'stationery': 'pencil-alt',
+    'cannabis': 'cannabis',
+    'confectionery': 'candy-cane',
+    'veterinary': 'paw',
+    'caravan': 'caravan',
+    'sports': 'futbol',
+    'charity': 'hand-holding-heart',
+    'optician': 'glasses',
+    'bakery': 'bread-slice',
+    'shoes': 'shoe-prints',
+    'second_hand': 'recycle',
+    'general': 'store',
+    'garden_centre': 'seedling',
+    'e-cigarette': 'smoking',
+    'doctors': 'user-md',
+    'tyres': 'car',
+    'craft': 'paint-brush',
+    'toys': 'puzzle-piece',
+    'pet': 'paw',
+    'bicycle': 'bicycle',
+    'funeral_directors': 'cross',
+    'wine': 'wine-glass-alt',
+    'butcher': 'drumstick-bite',
+    'spa': 'spa',
+    'theatre': 'theater-masks',
+    'outdoor': 'tree',
+    'frozen_food': 'snowflake',
+    'vacuum_cleaner': 'broom',
+    'drinking_water': 'tint',
+    'machine_tools': 'cogs',
+    'antiques': 'hourglass',
+    'events_venue': 'calendar-alt',
+    'copyshop': 'copy',
+    'groundskeeping': 'leaf',
+    'clinic': 'clinic-medical',
+    'erotic': 'heart',
+    'pet_grooming': 'paw',
+    'dojo': 'yin-yang',
+    'appliance': 'plug',
+    'farm': 'tractor',
+    'motorcycle': 'motorcycle',
+    'deli': 'utensils',
+    'brothel': 'bed',
+    'locksmith': 'key',
+    'interior_decoration': 'paint-roller',
+    'art': 'palette',
+    'rental': 'home',
+    'computer_electronics': 'laptop',
+    'fabric': 'tshirt',
+    'weight_loss': 'weight',
+    'greengrocer': 'apple-alt',
+    'bar': 'glass-martini',
+    'collector': 'coins',
+    'musical_instrument': 'guitar',
+    'ice_cream': 'ice-cream',
+    'tailor': 'cut',
+    'product_pickup': 'box',
+    'nightclub': 'music',
+    'community_centre': 'users',
+    'taxi': 'taxi',
+    'music': 'music',
+    'driving_school': 'car',
+    'nutrition_supplements': 'capsules'
+}
