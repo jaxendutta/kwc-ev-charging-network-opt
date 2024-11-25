@@ -11,14 +11,21 @@ ENV/
 # Jupyter Notebook
 .ipynb_checkpoints
 notebooks/cache
+notebooks/data/
 
 # VSCode
 .vscode/
 *.code-workspace
 
-# Data
-data/
+# Data, Cache, Logs
+cache/
+data/raw/boundaries/
+data/raw/charging_stations/
+data/raw/population/
+data/raw/potential_locations/
+data/processed/
 !src/data/
+results/
 
 # Gurobi
 *.lp

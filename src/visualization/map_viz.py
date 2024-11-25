@@ -1,14 +1,16 @@
 """Visualization utilities for EV charging station locations."""
-import folium
 from typing import Optional
 from IPython.display import display
 import pandas as pd
 import numpy as np
 from scipy.spatial import ConvexHull
+import folium
 from folium import Element
-import geopandas as gpd
-from src.data.data_manager import DataManager
 from folium.plugins import HeatMap
+import branca.colormap as cm
+import geopandas as gpd
+
+from src.data.data_manager import DataManager
 from src.data.constants import *
 
 def draw_map(m: folium.Map):
@@ -139,8 +141,7 @@ def plot_charging_stations(m: folium.Map, stations_df: pd.DataFrame) -> folium.M
     colors = {
         'Level 1': 'red',
         'Level 2': 'blue',
-        'Level 3': 'green',
-        'Unknown': 'gray'
+        'Level 3': 'green'
     }
     
     counts = stations_df['charger_type'].value_counts().to_dict()
@@ -156,6 +157,24 @@ def plot_charging_stations(m: folium.Map, stations_df: pd.DataFrame) -> folium.M
                     popup=folium.Popup(popup_content, max_width=300)
                 ).add_to(layer)
             layer.add_to(m)
+    
+    # Handle stations with charger types other than Level 1, 2, or 3
+    other_types = stations_df[~stations_df['charger_type'].isin(colors.keys())]
+    other_charger_types = other_types['charger_type'].unique()
+    free_colours = [col for col in FOLIUM_COLORS if col not in colors.values()]
+    for i, charger_type in enumerate(other_charger_types):
+        layer = folium.FeatureGroup(name=f'{charger_type} Charging Stations')
+        color = free_colours[(i + 3) % len(free_colours)]
+        for _, row in other_types[other_types['charger_type'] == charger_type].iterrows():
+            popup_content = folium_pop_up_html(row, charger=True)
+            folium.Marker(
+                location=[row['latitude'], row['longitude']],
+                icon=folium.Icon(color=color, icon='bolt', prefix='fa'),
+                popup=folium.Popup(popup_content, max_width=300)
+            ).add_to(layer)
+        layer.add_to(m)
+        colors[charger_type] = color
+        counts[charger_type] = len(other_types[other_types['charger_type'] == charger_type])
 
     # Add legend with statistics
     m = add_legend_to_map(m, colors, counts)
@@ -514,4 +533,64 @@ def plot_housing_patterns(m: folium.Map, population_data: gpd.GeoDataFrame) -> f
     counts = {'High-Value Areas': len(high_value_areas)}
     m = add_legend_to_map(m, color_map, counts)
 
+    return m
+
+import branca.colormap as cm
+
+def plot_ev_density(m: folium.Map, ev_data: gpd.GeoDataFrame) -> folium.Map:
+    """
+    Add EV density layer to the map.
+    
+    Args:
+        m: Base map to add the layer to
+        ev_data: GeoDataFrame containing EV data with density information
+        
+    Returns:
+        Updated map with EV density layer
+    """
+    # Create feature group for EV density
+    ev_group = folium.FeatureGroup(name='EV Density')
+
+    # Create color map for EV density
+    colormap = cm.LinearColormap(
+        colors=['#FFEDA0', '#FEB24C', '#FC4E2A', '#E31A1C'],
+        vmin=ev_data['ev_density'].min(),
+        vmax=ev_data['ev_density'].max(),
+        caption='EVs per km²'
+    )
+
+    # Style function for GeoJSON layer
+    def style_function(feature):
+        density = feature['properties']['ev_density']
+        return {
+            'fillColor': colormap(density),
+            'fillOpacity': 0.7,
+            'color': 'black',
+            'weight': 1
+        }
+
+    # Add the styled GeoJSON layer
+    folium.GeoJson(
+        ev_data,
+        style_function=style_function,
+        tooltip=folium.GeoJsonTooltip(
+            fields=['FSA', 'total_ev', 'bev', 'phev', 'ev_density', 'bev_ratio'],
+            aliases=['FSA:', 'Total EVs:', 'BEVs:', 'PHEVs:', 'Density (EVs/km²):', 'BEV Ratio (%):'],
+            localize=True,
+            sticky=False,
+            labels=True,
+            style=('background-color: white; '
+                   'color: #333333; '
+                   'font-family: arial; '
+                   'font-size: 12px; '
+                   'padding: 10px;')
+        )
+    ).add_to(ev_group)
+
+    # Add the colormap legend to the map
+    m.add_child(colormap)
+
+    # Add the EV density layer to the map
+    m.add_child(ev_group)
+    
     return m

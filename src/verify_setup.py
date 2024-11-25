@@ -152,10 +152,15 @@ def check_openchargemap_api():
     """Check if the OpenChargeMap API is accessible."""
     print("\nChecking OpenChargeMap API connectivity...")
     try:
-        from src.archive.api_client import APIClient
-        APIClient().fetch_charging_stations()
-        print("✓ OpenChargeMap API is accessible")
-        return True
+        from archive.api_client import APIClient
+        client = APIClient()
+        response = client.fetch_charging_stations(limit=1)
+        if response and 'status' in response and response['status'] == 'success':
+            print("✓ OpenChargeMap API is accessible")
+            return True
+        else:
+            print("✗ OpenChargeMap API returned an unexpected response")
+            return False
     except Exception as e:
         print(f"✗ OpenChargeMap API error: {str(e)}")
         return False

@@ -45,7 +45,8 @@ DATA_DIR = PROJECT_ROOT / 'data'
 RAW_DATA_DIR = DATA_DIR / 'raw'
 PROCESSED_DATA_DIR = DATA_DIR / 'processed'
 NOTEBOOKS_DIR = PROJECT_ROOT / 'notebooks'
-SRC_MODELS_DIR = PROJECT_ROOT / 'src/models'
+RESULTS_DIR = PROJECT_ROOT / 'results'
+SRC_MODEL_DIR = PROJECT_ROOT / 'src/model'
 SRC_DATA_DIR = PROJECT_ROOT / 'src/data'
 SRC_VISUALIZATION_DIR = PROJECT_ROOT / 'src/visualization'
 
@@ -54,18 +55,27 @@ DATA_PATHS = {
     'charging_stations': RAW_DATA_DIR / 'charging_stations',
     'potential_locations': RAW_DATA_DIR / 'potential_locations',
     'population': RAW_DATA_DIR / 'population',
-    'integrated_analyzed_data': PROCESSED_DATA_DIR / 'integrated_analyzed_data'
+    'ev_fsa': RAW_DATA_DIR / 'ev_fsa',
+    'boundaries': RAW_DATA_DIR / 'boundaries',
+    'integrated_analyzed_data': PROCESSED_DATA_DIR / 'integrated_analyzed_data',
+    'demand_points': PROCESSED_DATA_DIR / 'demand_points',
+    'ev_fsa_analyzed': PROCESSED_DATA_DIR / 'ev_fsa_analyzed',
+    'optimization_inputs': PROCESSED_DATA_DIR / 'optimization_inputs',
 }
 
 # Source code files
 SOURCE_CODE_FILES = [
     NOTEBOOKS_DIR / '01_data_collection.ipynb',
-    NOTEBOOKS_DIR / '02_demand_analysis.ipynb',
+    NOTEBOOKS_DIR / '02_location_analysis.ipynb',
+    NOTEBOOKS_DIR / '03_enhancement_analysis.ipynb',
+    NOTEBOOKS_DIR / '04_data_preparation.ipynb',
+    NOTEBOOKS_DIR / '05_optimization_model.ipynb',
     SRC_DATA_DIR / 'utils.py',
     SRC_DATA_DIR / 'constants.py',
     SRC_DATA_DIR / 'data_manager.py',
-    SRC_MODELS_DIR / 'facility_location.py',
-    SRC_VISUALIZATION_DIR / 'map_viz.py'
+    SRC_MODEL_DIR / 'network_optimizer.py',
+    SRC_VISUALIZATION_DIR / 'map_viz.py',
+    SRC_VISUALIZATION_DIR / 'optimization_viz.py'
 ]
 
 # Area parameters
@@ -81,6 +91,25 @@ KWC_CITIES = [
     'Woolwich, Ontario', 
     'North Dumfries, Ontario', 
     'Wellesley, Ontario']
+
+# KWC_SORTATION_AREAS
+FSA_CODES = {
+    'Waterloo': ['N2J', 'N2K', 'N2L', 'N2T', 'N2V', 'N2M'],                                    # N2J to N2L, N2T, N2V, N2M
+    'Kitchener': ['N2A', 'N2B', 'N2C', 'N2E', 'N2G', 'N2H', 'N2M', 'N2N', 'N2P', 'N2R'],       # N2A to N2H, N2M to N2R
+    'Cambridge': ['N1P', 'N1R', 'N1S', 'N1T', 'N3C', 'N3E', 'N3H'],                            # N1P to N1T, N3C to N3E, N3H
+    'North Dumfries': ['N0B'],                    # N0B
+    'Wellesley': ['N0B'],                         # N0B
+    'Wilmot': ['N3A'],                            # N3A
+    'Woolwich': ['N0B', 'N3A', 'N3B'],            # N0B, N3A, N3B
+}
+
+# Combine overlapping sortation areas
+ALL_FSA_CODES = set()
+for areas in FSA_CODES.values():
+    ALL_FSA_CODES.update(areas)
+
+ALL_FSA_CODES = list(ALL_FSA_CODES)
+
 
 # API configurations
 API_TIMEOUT = 10  # seconds

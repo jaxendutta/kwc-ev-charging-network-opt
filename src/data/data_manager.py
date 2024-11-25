@@ -39,11 +39,9 @@ import logging
 import osmnx as ox
 import pyproj
 import hashlib
-import warnings
 import osmnx as ox
 import pyproj
 import hashlib
-import warnings
 from typing import Any, Optional, List, Dict, Tuple, Union
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -56,6 +54,11 @@ import hashlib
 import warnings
 from ratelimit import limits, sleep_and_retry
 from tqdm import tqdm
+from scipy.spatial.distance import pdist
+from tabulate import tabulate
+from scipy.spatial.distance import pdist, squareform, cdist
+import zipfile
+
 from .constants import *
 from .utils import *
 from .endpoints import *
@@ -1821,8 +1824,7 @@ class DataManager:
             logger.error(f"❌ Error identifying hotspots: {str(e)}")
             raise
     
-    def calculate_density_based_score(self, point: Point,
-                                    radius_km: float = 2) -> float:
+    def calculate_density_based_score(self, point: Point, radius_km: float = 2.0) -> float:
         """
         Calculate population-based score for a location.
         
@@ -1831,45 +1833,38 @@ class DataManager:
             radius_km: Radius to consider
             
         Returns:
-            Float score based on surrounding population
+            Float score between 0 and 1
         """
         try:
             population = self.get_population_data()
+            population = population[population['data_source'] == 'Region of Waterloo']
+            
+            # Convert to UTM for accurate distance calculation
+            point_utm = gpd.GeoDataFrame(
+                geometry=[point],
+                crs="EPSG:4326"
+            ).to_crs("EPSG:32617")
+            
+            pop_utm = population.to_crs("EPSG:32617")
             
             # Create buffer
-            buffer = point.buffer(radius_km / 111)  # Approximate degrees
+            buffer = point_utm.geometry[0].buffer(radius_km * 1000)  # Convert km to meters
             
             # Find intersecting census tracts
-            intersecting = population[population.intersects(buffer)]
+            intersecting = pop_utm[pop_utm.geometry.intersects(buffer)]
             
             if len(intersecting) == 0:
                 return 0.0
             
             # Calculate score components
             total_pop = intersecting['population'].sum()
-            avg_density = intersecting['population_density'].mean()
-            avg_income = intersecting['MEDIAN_INCOME'].mean()
+            max_pop = population['population'].max()
+            pop_score = min(total_pop / max_pop, 1.0)
             
-            # Normalize components
-            pop_score = min(total_pop / 10000, 1.0)  # Cap at 10,000 people
-            density_score = min(avg_density / 5000, 1.0)  # Cap at 5000/km²
-            income_score = (
-                (avg_income - population['MEDIAN_INCOME'].min()) /
-                (population['MEDIAN_INCOME'].max() - 
-                 population['MEDIAN_INCOME'].min())
-            )
-            
-            # Weighted combination
-            score = (
-                0.4 * pop_score +
-                0.4 * density_score +
-                0.2 * income_score
-            )
-            
-            return float(score)
-            
+            return float(pop_score)
+                
         except Exception as e:
-            logger.error(f"❌ Error calculating density score: {str(e)}")
+            logger.debug(f"Error calculating density score: {str(e)}")
             return 0.0
         
 
@@ -2086,67 +2081,66 @@ class DataManager:
                 'coverage_percentage': 0
             }
     
-    def calculate_accessibility_score(self, 
-                                   point: Point,
-                                   infrastructure: Optional[Dict[str, gpd.GeoDataFrame]] = None
-                                   ) -> Dict[str, float]:
-        """
-        Calculate comprehensive accessibility score for a location.
-        
-        Args:
-            point: Location to score
-            infrastructure: Optional dict of pre-loaded infrastructure data
-            
-        Returns:
-            Dict containing accessibility scores by category
-        """
+    def calculate_accessibility_score(self, point: Point) -> Dict[str, float]:
+        """Calculate accessibility score based on available data."""
         try:
-            # Load infrastructure data if not provided
-            if infrastructure is None:
-                infrastructure = {
-                    'roads': self.fetch_data('infrastructure', 'roads', 'geojson'),
-                    'grt_stops': self.fetch_data('transportation', 'grt_stops', 'geojson'),
-                    'ion_stops': self.fetch_data('transportation', 'ion_stops', 'geojson'),
-                    'parks': self.fetch_data('land_use', 'parks', 'geojson'),
-                    'business': self.fetch_data('land_use', 'business_areas', 'geojson')
-                }
-            
             scores = {}
             
-            # Transit accessibility (40% of total)
-            grt_distances = self._calculate_distances_to_nearest(point, infrastructure['grt_stops'])
-            ion_distances = self._calculate_distances_to_nearest(point, infrastructure['ion_stops'])
+            # Population density score (40%)
+            pop_density_score = 0.0
+            try:
+                density = self.calculate_density_based_score(point)
+                pop_density_score = min(density, 1.0)
+            except Exception as e:
+                logger.debug(f"Error calculating density score: {str(e)}")
             
-            scores['transit'] = (
-                0.6 * self._distance_to_score(grt_distances['min'], max_dist=0.8) +
-                0.4 * self._distance_to_score(ion_distances['min'], max_dist=1.2)
+            # Transit accessibility score (30%)
+            transit_score = 0.0
+            try:
+                transit_data = self.analyze_transportation_network()
+                if transit_data:
+                    transit_score = min(
+                        self.calculate_transit_accessibility(point, transit_data),
+                        1.0
+                    )
+            except Exception as e:
+                logger.debug(f"Error calculating transit score: {str(e)}")
+            
+            # Location type score (30%)
+            location_score = 0.0
+            try:
+                location_weights = {
+                    'parking': 0.8,
+                    'fuel': 1.0,
+                    'retail': 0.7,
+                    'commercial': 0.9,
+                    'supermarket': 0.8,
+                    'other': 0.6
+                }
+                if hasattr(point, 'location_type'):
+                    location_score = location_weights.get(point.location_type, 0.6)
+            except Exception as e:
+                logger.debug(f"Error calculating location score: {str(e)}")
+            
+            # Combine scores
+            total_score = (
+                0.4 * pop_density_score +
+                0.3 * transit_score +
+                0.3 * location_score
             )
             
-            # Road network accessibility (30% of total)
-            road_distances = self._calculate_distances_to_nearest(point, infrastructure['roads'])
-            scores['road'] = self._distance_to_score(road_distances['min'], max_dist=0.2)
-            
-            # Land use mix (30% of total)
-            business_distances = self._calculate_distances_to_nearest(point, infrastructure['business'])
-            park_distances = self._calculate_distances_to_nearest(point, infrastructure['parks'])
-            
-            scores['land_use'] = (
-                0.6 * self._distance_to_score(business_distances['min'], max_dist=1.0) +
-                0.4 * self._distance_to_score(park_distances['min'], max_dist=0.8)
-            )
-            
-            # Calculate weighted total
-            scores['total'] = (
-                0.4 * scores['transit'] +
-                0.3 * scores['road'] +
-                0.3 * scores['land_use']
-            )
-            
-            return scores
+            return {
+                'total': total_score,
+                'components': {
+                    'population': pop_density_score,
+                    'transit': transit_score,
+                    'location': location_score
+                }
+            }
             
         except Exception as e:
-            logger.error(f"❌ Error calculating accessibility score: {str(e)}")
-            return {'total': 0.0}
+            logger.debug(f"Error in accessibility scoring: {str(e)}")
+            return {'total': 0.0, 'components': {}}
         
     def calculate_accessibility_scores_batch(self, points: gpd.GeoDataFrame, max_distance: float = 2.0) -> np.ndarray:
         """
@@ -2213,6 +2207,48 @@ class DataManager:
         
         # Combine scores with weights
         return 0.6 * grt_scores + 0.4 * ion_scores
+
+    def calculate_transit_accessibility(self, point: Point, transit_data: Dict) -> float:
+        """Calculate transit accessibility score without requiring road data."""
+        try:
+            # Use only GRT and ION data
+            grt_stops = transit_data['transit_network']['grt_stops_data']
+            ion_stops = transit_data['transit_network']['ion_stops_data']
+            
+            # Convert to GeoDataFrame if necessary
+            if not isinstance(grt_stops, gpd.GeoDataFrame):
+                grt_stops = gpd.GeoDataFrame(
+                    grt_stops,
+                    geometry=gpd.points_from_xy(
+                        grt_stops.longitude,
+                        grt_stops.latitude
+                    ),
+                    crs=self.wgs84_crs
+                )
+            
+            if not isinstance(ion_stops, gpd.GeoDataFrame):
+                ion_stops = gpd.GeoDataFrame(
+                    ion_stops,
+                    geometry=gpd.points_from_xy(
+                        ion_stops.longitude,
+                        ion_stops.latitude
+                    ),
+                    crs=self.wgs84_crs
+                )
+            
+            # Calculate distances
+            grt_dist = grt_stops.geometry.distance(point).min() / 1000  # km
+            ion_dist = ion_stops.geometry.distance(point).min() / 1000  # km
+            
+            # Score based on distance
+            grt_score = max(0, 1 - (grt_dist / 0.8))  # 800m radius
+            ion_score = max(0, 1 - (ion_dist / 1.2))  # 1.2km radius
+            
+            return 0.6 * grt_score + 0.4 * ion_score
+            
+        except Exception as e:
+            logger.debug(f"Error calculating transit accessibility: {str(e)}")
+            return 0.0
     
     def analyze_charging_infrastructure(self) -> Dict[str, Union[Dict, pd.DataFrame]]:
         """
@@ -2451,7 +2487,117 @@ class DataManager:
             boundary.to_crs({'proj':'cea'}).geometry.area.sum() / 1_000_000
         )
 
+    #
+    # Electric Vehicle (EV) Data Methods
+    #
+    def process_ev_fsa_data(self) -> gpd.GeoDataFrame:
+        try:
+            with tqdm(total=6, desc="Processing EV FSA Data") as pbar:
+                # Load FSA data
+                fsa_data = load_latest_file(DATA_PATHS['ev_fsa'], 'csv')
+                pbar.update(1)
+                pbar.set_description("Loading FSA boundaries")
+                
+                # Load FSA boundaries
 
+                boundary_file = self.get_boundaries_shapefile()
+                if not boundary_file.exists():
+                    raise FileNotFoundError(f"FSA boundary file not found at {boundary_file}")
+                    
+                fsa_boundaries = gpd.read_file(str(boundary_file))
+                
+                # Debug: print columns and sample FSA values
+                print("\nBoundary File Columns:", fsa_boundaries.columns.tolist())
+                print("\nSample FSA values:", fsa_boundaries['CFSAUID'].head())
+                
+                pbar.update(1)
+                pbar.set_description("Filtering and cleaning data")
+                
+                # Filter to KW region FSAs and clean data
+                kw_fsa_data = fsa_data[fsa_data['FSA'].isin(ALL_FSA_CODES)].copy()
+                
+                # Rename columns to be more code-friendly
+                kw_fsa_data = kw_fsa_data.rename(columns={
+                    'Total EV': 'total_ev',
+                    'BEV': 'bev',
+                    'PHEV': 'phev'
+                })
+                pbar.update(1)
+                pbar.set_description("Calculating metrics")
+                
+                # Calculate initial metrics
+                kw_total_evs = kw_fsa_data['total_ev'].sum()
+                kw_fsa_data['ev_share'] = kw_fsa_data['total_ev'] / kw_total_evs * 100
+                kw_fsa_data['bev_ratio'] = kw_fsa_data['bev'] / kw_fsa_data['total_ev'] * 100
+                kw_fsa_data['phev_ratio'] = kw_fsa_data['phev'] / kw_fsa_data['total_ev'] * 100
+                pbar.update(1)
+                pbar.set_description("Processing spatial data")
+                
+                # Get FSA column from boundaries and ensure it matches our format
+                fsa_boundaries['FSA'] = fsa_boundaries['CFSAUID']
+                kw_boundaries = fsa_boundaries[fsa_boundaries['FSA'].isin(ALL_FSA_CODES)]
+                
+                # Debug: print FSA values before merge
+                print("\nFSA values in boundary data:", kw_boundaries['FSA'].tolist())
+                print("\nFSA values in EV data:", kw_fsa_data['FSA'].tolist())
+                
+                # Merge boundary and EV data
+                fsa_gdf = kw_boundaries.merge(kw_fsa_data, on='FSA', how='left')
+                pbar.update(1)
+                pbar.set_description("Computing spatial metrics")
+                
+                # Calculate spatial metrics
+                fsa_gdf['area_km2'] = fsa_gdf.to_crs({'proj':'cea'}).geometry.area / 1_000_000
+                fsa_gdf['ev_density'] = fsa_gdf['total_ev'] / fsa_gdf['area_km2']
+                
+                # Debug: print final FSA values
+                print("\nFinal FSA values:", fsa_gdf['FSA'].tolist())
+                
+                pbar.update(1)
+                pbar.set_description("Processing complete!")
+                
+                return fsa_gdf
+            
+        except Exception as e:
+            logger.error(f"Error processing FSA data: {str(e)}")
+            raise
+
+    def get_boundaries_shapefile(self) -> Path:
+        url = "https://www12.statcan.gc.ca/census-recensement/2021/geo/sip-pis/boundary-limites/files-fichiers/lfsa000b21a_e.zip"
+        boundaries_path = DATA_PATHS['boundaries']
+        zip_path = boundaries_path / 'lfsa000b21a_e.zip'
+        shp_path = boundaries_path / 'boundaries.shp'
+
+        # Download the zip file
+        response = requests.get(url)
+        with open(zip_path, 'wb') as file:
+            file.write(response.content)
+
+        # Unzip the file
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(boundaries_path)
+
+        # Find the extracted folder
+        extracted_folder = None
+        for item in boundaries_path.iterdir():
+            if item.is_dir():
+                extracted_folder = item
+                break
+
+        # Move files to the parent directory and delete the folder
+        if extracted_folder:
+            for file in extracted_folder.iterdir():
+                if file.suffix == '.shp':
+                    file.rename(shp_path)
+                else:
+                    file.unlink()
+            extracted_folder.rmdir()
+
+        # Delete the zip file
+        zip_path.unlink()
+
+        return shp_path
+    
     #
     # Data Integration and Quality Management Methods
     #
@@ -2716,7 +2862,6 @@ class DataManager:
         scores.append(min(density / 0.5, 1.0))  # Expect at least 0.5 stations per km²
         
         # Check spatial distribution
-        from scipy.spatial.distance import pdist
         coords = stations[['geometry']].copy()
         coords['x'] = stations.geometry.x
         coords['y'] = stations.geometry.y
@@ -2767,117 +2912,297 @@ class DataManager:
             'consistency_warnings': 0
         }
 
-    #
-    # Optimization Preparation Methods
-    #
-    
-    def prepare_optimization_data(self) -> Dict[str, Union[pd.DataFrame, np.ndarray]]:
+    def calculate_enhancement_score(self, row: pd.Series) -> Dict[str, float]:
         """
-        Prepare data structures for optimization model.
+        Calculate enhancement opportunity score for charging infrastructure.
+        
+        Args:
+            row: Series containing location data
+            
+        Returns:
+            Dict containing component scores and total score
+        """
+        scores = {}
+        
+        # EV adoption factor (35%)
+        if 'ev_density' in row:
+            ev_score = min(row['ev_density'] / self.ev_stats['ev_density'].max(), 1.0)
+            scores['ev_adoption'] = ev_score
+        else:
+            scores['ev_adoption'] = 0.0
+        
+        # Current infrastructure assessment (25%)
+        # Higher score for areas with many L2 chargers but few L3
+        if 'num_chargers' in row and 'charger_type' in row:
+            l2_ratio = (row['num_chargers'] * (row['charger_type'] == 'Level 2'))
+            l3_ratio = (row['num_chargers'] * (row['charger_type'] == 'Level 3'))
+            infrastructure_score = l2_ratio / (l3_ratio + 1)  # Add 1 to avoid division by zero
+            scores['infrastructure'] = min(infrastructure_score, 1.0)
+        else:
+            scores['infrastructure'] = 0.0
+        
+        # Population density impact (20%)
+        density_score = min(row['population_density'] / self.population_stats['density'].max(), 1.0)
+        scores['density'] = density_score
+        
+        # Transit accessibility inverse (15%)
+        transit_score = 1 - row.get('transit_score', 0)
+        scores['transit'] = transit_score
+        
+        # Grid capacity and age factor (5%)
+        if 'DWELL_PERIOD_2011_2015' in row and 'DWELL_PERIOD_2016_2021' in row:
+            recent_units = row['DWELL_PERIOD_2011_2015'] + row['DWELL_PERIOD_2016_2021']
+            total_units = sum(row[col] for col in self.housing_age_cols)
+            recent_score = recent_units / total_units if total_units > 0 else 0
+            scores['infrastructure_age'] = recent_score
+        else:
+            scores['infrastructure_age'] = 0.0
+        
+        # Calculate weighted total
+        scores['total'] = (
+            0.35 * scores['ev_adoption'] +
+            0.25 * scores['infrastructure'] +
+            0.20 * scores['density'] +
+            0.15 * scores['transit'] +
+            0.05 * scores['infrastructure_age']
+        )
+        
+        return scores
+
+    def analyze_enhancement_opportunities(self) -> pd.DataFrame:
+        """
+        Analyze opportunities for charging infrastructure enhancement.
         
         Returns:
-            Dict containing:
-            - demand_points: Population centers with weights
-            - potential_sites: Candidate locations with scores
-            - distance_matrix: Distances between points
-            - existing_coverage: Current coverage matrix
+            DataFrame with enhancement scores and recommendations
         """
         try:
             # Get integrated data
-            population = self.get_population_data()
-            stations = self.fetch_charging_stations()
-            potential_df = self.fetch_potential_locations()
+            integrated_data = self.integrate_all_data()
             
-            # Prepare demand points
+            # Calculate enhancement scores for each location
+            enhancement_scores = []
+            
+            for idx, row in integrated_data['charging'].iterrows():
+                scores = self.calculate_enhancement_score(row)
+                
+                enhancement_scores.append({
+                    'station_id': idx,
+                    'name': row['name'],
+                    'latitude': row.geometry.y,
+                    'longitude': row.geometry.x,
+                    'current_type': row['charger_type'],
+                    'num_chargers': row['num_chargers'],
+                    'ev_adoption_score': scores['ev_adoption'],
+                    'infrastructure_score': scores['infrastructure'],
+                    'density_score': scores['density'],
+                    'transit_score': scores['transit'],
+                    'infrastructure_age_score': scores['infrastructure_age'],
+                    'total_score': scores['total'],
+                    'geometry': row.geometry
+                })
+            
+            # Create GeoDataFrame with scores
+            enhancement_gdf = gpd.GeoDataFrame(enhancement_scores)
+            
+            # Add recommendations based on scores
+            enhancement_gdf['recommendation'] = enhancement_gdf.apply(
+                lambda x: 'High Priority Upgrade' if x['total_score'] > 0.8
+                else 'Consider Upgrade' if x['total_score'] > 0.6
+                else 'Monitor' if x['total_score'] > 0.4
+                else 'No Action',
+                axis=1
+            )
+            
+            return enhancement_gdf
+            
+        except Exception as e:
+            logger.error(f"Error analyzing enhancement opportunities: {str(e)}")
+            raise
+
+    #
+    # Optimization Preparation Methods
+    #
+    def prepare_optimization_data(self) -> Dict[str, Union[pd.DataFrame, np.ndarray]]:
+        """Prepare data structures for optimization model."""
+        try:
+            print("\n📊 Preparing Optimization Data")
+            print("=" * 50)
+            
+            # 1. Load Base Data
+            print("\n🔄 Loading base data...")
+            with tqdm(total=3, desc="Data sources") as pbar:
+                # Suppress detailed logging during population data fetch
+                logging.getLogger('data.data_manager').setLevel(logging.WARNING)
+                population = self.get_population_data()
+                pbar.update(1)
+                
+                print("\n📊 Loading charging stations...")
+                stations = self.fetch_charging_stations()
+                pbar.update(1)
+                
+                print("\n🏢 Loading potential locations...")
+                potential_df = self.fetch_potential_locations()
+                pbar.update(1)
+
+            print("\n📊 Data Loading Summary:")
+            print("-" * 50)
+            print(f"Population Areas: {len(population)}")
+            print(f"Charging Stations: {len(stations)}")
+            print(f"Potential Locations: {len(potential_df)}")
+
+            # 2. Process Demand Points
+            print("\n📍 Processing demand points...")
+            valid_pop = population[
+                (population['data_source'] == 'Region of Waterloo') &
+                population.geometry.notna() &
+                population.geometry.is_valid &
+                population['population'].notna() &
+                (population['population'] > 0)
+            ]
+            
+            # Convert to UTM for accurate calculations
+            valid_pop_utm = valid_pop.to_crs("EPSG:32617")
+            
             demand_points = pd.DataFrame({
-                'point_id': range(len(population)),
-                'latitude': population.geometry.centroid.y,
-                'longitude': population.geometry.centroid.x,
-                'population': population['population'],
-                'weight': population['population'] / population['population'].sum()
+                'point_id': range(len(valid_pop_utm)),
+                'latitude': valid_pop_utm.geometry.centroid.y,
+                'longitude': valid_pop_utm.geometry.centroid.x,
+                'population': valid_pop_utm['population'],
+                'weight': valid_pop_utm['population'] / valid_pop_utm['population'].sum()
             })
             
-            # Prepare potential sites
+            # Convert back to WGS84
+            demand_points_wgs84 = gpd.GeoDataFrame(
+                demand_points,
+                geometry=gpd.points_from_xy(
+                    demand_points.longitude,
+                    demand_points.latitude
+                ),
+                crs="EPSG:32617"
+            ).to_crs("EPSG:4326")
+            
+            demand_points['latitude'] = demand_points_wgs84.geometry.y
+            demand_points['longitude'] = demand_points_wgs84.geometry.x
+            
+            print(f"✓ Processed {len(demand_points)} demand points")
+
+            # 3. Process Potential Sites
+            print("\n🎯 Processing potential sites...")
             potential_sites = pd.DataFrame({
                 'site_id': range(len(potential_df)),
                 'latitude': potential_df['latitude'],
                 'longitude': potential_df['longitude'],
                 'location_type': potential_df['location_type']
             })
+
+            # Calculate site scores efficiently using vectorized operations
+            print("Calculating site accessibility scores...")
             
-            # Calculate site scores
-            potential_sites['score'] = potential_sites.apply(
-                lambda x: self.calculate_accessibility_score(
-                    Point(x['longitude'], x['latitude'])
-                )['total'],
-                axis=1
-            )
-            
-            # Calculate distance matrix
-            distances = self.calculate_distances(
-                from_points=gpd.GeoDataFrame(
-                    potential_sites,
-                    geometry=gpd.points_from_xy(
-                        potential_sites.longitude,
-                        potential_sites.latitude
-                    ),
-                    crs=self.wgs84_crs
+            # Convert sites to GeoDataFrame once
+            sites_gdf = gpd.GeoDataFrame(
+                potential_sites,
+                geometry=gpd.points_from_xy(
+                    potential_sites.longitude,
+                    potential_sites.latitude
                 ),
-                to_points=gpd.GeoDataFrame(
-                    demand_points,
-                    geometry=gpd.points_from_xy(
-                        demand_points.longitude,
-                        demand_points.latitude
-                    ),
-                    crs=self.wgs84_crs
-                )
-            )
+                crs="EPSG:4326"
+            ).to_crs("EPSG:32617")
             
-            # Calculate existing coverage
-            existing_stations = gpd.GeoDataFrame(
+            # Convert population data once (already in UTM)
+            scores = []
+            
+            with tqdm(total=len(sites_gdf), desc="Site scoring", unit="sites") as pbar:
+                for idx, site in sites_gdf.iterrows():
+                    # Calculate coverage within radius
+                    buffer = site.geometry.buffer(2000)  # 2km radius
+                    intersecting = valid_pop_utm[valid_pop_utm.geometry.intersects(buffer)]
+                    
+                    if len(intersecting) == 0:
+                        score = 0.0
+                    else:
+                        # Calculate population coverage
+                        total_pop = intersecting['population'].sum()
+                        max_pop = valid_pop_utm['population'].max()
+                        score = min(total_pop / max_pop, 1.0)
+                    
+                    scores.append(score)
+                    
+                    if idx % 100 == 0:
+                        pbar.set_postfix({'avg_score': f"{np.mean(scores):.2f}"})
+                    pbar.update(1)
+
+            potential_sites['score'] = scores
+
+            # 4. Calculate distance matrices
+            print("\n📏 Calculating distance matrices...")
+
+            # Create GeoDataFrames in UTM for accurate distances
+            sites_gdf = gpd.GeoDataFrame(
+                potential_sites,
+                geometry=gpd.points_from_xy(
+                    potential_sites.longitude,
+                    potential_sites.latitude
+                ),
+                crs="EPSG:4326"
+            ).to_crs("EPSG:32617")
+
+            demand_gdf = gpd.GeoDataFrame(
+                demand_points,
+                geometry=gpd.points_from_xy(
+                    demand_points.longitude,
+                    demand_points.latitude
+                ),
+                crs="EPSG:4326"
+            ).to_crs("EPSG:32617")
+
+            stations_gdf = gpd.GeoDataFrame(
                 stations,
                 geometry=gpd.points_from_xy(
                     stations.longitude,
                     stations.latitude
                 ),
-                crs=self.wgs84_crs
-            )
-            
-            existing_distances = self.calculate_distances(
-                from_points=existing_stations,
-                to_points=gpd.GeoDataFrame(
-                    demand_points,
-                    geometry=gpd.points_from_xy(
-                        demand_points.longitude,
-                        demand_points.latitude
-                    ),
-                    crs=self.wgs84_crs
-                )
-            )
-            
-            existing_coverage = (existing_distances <= 2.0).astype(int)
-            
-            # Estimate installation costs based on location type
-            cost_factors = {
-                'parking': 1.0,
-                'fuel': 1.2,
-                'retail': 1.5,
-                'commercial': 1.3,
-                'other': 1.4
-            }
-            
-            base_cost = 50000  # Base installation cost
-            potential_sites['installation_cost'] = potential_sites['location_type'].map(
-                lambda x: base_cost * cost_factors.get(x, 1.4)
-            )
+                crs="EPSG:4326"
+            ).to_crs("EPSG:32617")
+
+            print("\nCalculating site-to-demand distances...")
+            distances = np.zeros((len(sites_gdf), len(demand_gdf)))
+            with tqdm(total=len(sites_gdf), desc="Distance calculations") as pbar:
+                for i, site in enumerate(sites_gdf.geometry):
+                    for j, demand in enumerate(demand_gdf.geometry):
+                        distances[i, j] = site.distance(demand) / 1000  # Convert to km
+                    pbar.update(1)
+
+            print("\nCalculating existing coverage...")
+            existing_coverage = np.zeros((len(demand_gdf), len(stations_gdf)))
+            with tqdm(total=len(demand_gdf), desc="Coverage calculations") as pbar:
+                for i, demand in enumerate(demand_gdf.geometry):
+                    for j, station in enumerate(stations_gdf.geometry):  # Use enumerate instead of iterrows
+                        existing_coverage[i, j] = 1 if demand.distance(station) <= 2000 else 0  # 2km radius
+                    pbar.update(1)
+
+            print(f"\nMatrix Dimensions:")
+            print(f"- Distance matrix: {distances.shape}")
+            print(f"- Coverage matrix: {existing_coverage.shape}")
+            print(f"- Number of stations: {len(stations_gdf)}")
+            print(f"- Number of demand points: {len(demand_gdf)}")
+            print(f"- Number of potential sites: {len(sites_gdf)}")
+
+            print("\n✅ Data preparation complete!")
             
             return {
                 'demand_points': demand_points,
                 'potential_sites': potential_sites,
                 'distance_matrix': distances,
-                'existing_coverage': existing_coverage
+                'existing_coverage': existing_coverage,
+                'constraints': {
+                    'budget': 2000000,  # $2M budget
+                    'min_coverage': 0.8,  # 80% minimum coverage
+                    'max_l3_distance': 5.0,  # 5km maximum between L3
+                    'max_stations_per_area': 3  # Maximum 3 stations per area
+                }
             }
-            
+                
         except Exception as e:
             logger.error(f"❌ Error preparing optimization data: {str(e)}")
             raise
