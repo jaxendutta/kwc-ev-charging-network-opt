@@ -1,15 +1,10 @@
-#!/usr/bin/env python3
 """
 verify_setup.py - Verifies the setup for the KW EV Charging Station Optimization project.
 """
 
 import sys
 import os
-import warnings
-import platform
-from pathlib import Path
-import pandas as pd
-import numpy as np
+import requests
 from importlib.metadata import version, PackageNotFoundError
 from data.constants import *
 
@@ -142,7 +137,7 @@ def check_openstreetmap_api():
         import osmnx as ox
         ox.settings.use_cache=False
         ox.geocode('Kitchener, Ontario, Canada')
-        print("✓ OpenStreetMap API is accessible")
+        print("✓ OpenStreetMap API is accessible!")
         return True
     except Exception as e:
         print(f"✗ OpenStreetMap API error: {str(e)}")
@@ -152,17 +147,55 @@ def check_openchargemap_api():
     """Check if the OpenChargeMap API is accessible."""
     print("\nChecking OpenChargeMap API connectivity...")
     try:
-        from archive.api_client import APIClient
-        client = APIClient()
-        response = client.fetch_charging_stations(limit=1)
-        if response and 'status' in response and response['status'] == 'success':
-            print("✓ OpenChargeMap API is accessible")
+        import requests
+        api_key = os.getenv('OCMAP_API_KEY')
+        if not api_key:
+            print("✗ OpenChargeMap API key is not set")
+            return False
+        url = "https://api.openchargemap.io/v3/poi/"
+        params = {
+            'key': api_key,
+            'latitude': 43.4643,
+            'longitude': -80.5204,
+            'maxresults': 1
+        }
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            print("✓ OpenChargeMap API is accessible!")
             return True
         else:
-            print("✗ OpenChargeMap API returned an unexpected response")
+            print(f"✗ OpenChargeMap API returned status code {response.status_code}")
             return False
     except Exception as e:
         print(f"✗ OpenChargeMap API error: {str(e)}")
+        return False
+    
+def check_row_opendata_api():
+    """Check if the Region of Waterloo Open Data API is accessible."""
+    print("\nChecking Region of Waterloo Open Data API connectivity...")
+    try:
+        url = "https://services1.arcgis.com/qAo1OsXi67t7XgmS/arcgis/rest/services/Little_Libraries/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
+        response = requests.get(url)
+        
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                if 'features' in data and len(data['features']) > 0:
+                    print("✓ Region of Waterloo Open Data API is accessible!")
+                    print(f"  PS: There are {str(len(data['features']))} Little Libraries in the Region of Waterloo!")
+                    return True
+                else:
+                    print("✗ Region of Waterloo Open Data API returned an unexpected response")
+                    return False
+            except ValueError:
+                print("✗ Region of Waterloo Open Data API returned non-JSON response")
+                print(f"Response content: {response.text}")
+                return False
+        else:
+            print(f"✗ Region of Waterloo Open Data API returned status code {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"✗ Region of Waterloo Open Data API error: {str(e)}")
         return False
 
 def main():
@@ -178,6 +211,7 @@ def main():
         check_api_keys(),
         check_openstreetmap_api(),
         check_openchargemap_api(),
+        check_row_opendata_api(),
         check_dependencies(),
         check_directory_structure(),
         check_source_code_files()

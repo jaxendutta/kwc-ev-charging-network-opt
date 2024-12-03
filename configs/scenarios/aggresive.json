@@ -1,0 +1,25 @@
+{
+    "coverage": {
+        "min_coverage_l2": 0.98,
+        "min_coverage_l3": 0.80,
+        "l2_radius": 0.4,
+        "l3_radius": 0.6
+    },
+    "infrastructure": {
+        "max_new_ports": 8,
+        "grid_capacity": 750
+    },
+    "budget": {
+        "default": 20000000,
+        "max_per_site": 750000
+    },
+    "weights": {
+        "l3_coverage": 75.0,
+        "l2_coverage": 25.0,
+        "cost": 0.0
+    },
+    "requirements": {
+        "min_l3_per_area": 3,
+        "min_ports_per_l3": 3
+    }
+}

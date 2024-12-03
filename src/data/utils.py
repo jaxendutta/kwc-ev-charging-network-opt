@@ -1,48 +1,14 @@
 '''
 Utility functions for file handling and data processing.
-
-Functions:
-- grab_time: Get the current time in the format YYYY-MM-DD_HH-MM-SS.
-- get_file_timestamp: Get the timestamp of a file.
-- flatten_timestamp: Flatten the timestamp to a file name format.
-- get_latest_file: Get the latest file in a directory.
-- load_latest_file: Load the latest file in a directory based on its file type.
-- save_data: Save a dataframe to a specified file type.
-
-Functions:
-
-grab_time:
-    Get the current time in the format YYYY-MM-DD_HH-MM-SS.
-get_file_timestamp:
-    Get the timestamp of a file.
-flatten_timestamp:
-    Flatten the timestamp to a file name format.
-get_latest_file:
-    Get the latest file in a directory.
-    - directory: The directory to search for files.
-    - file_type: Optional. The file type to filter by (e.g., 'csv', 'json').
-    - latest_file: The latest file in the directory.
-    - timestamp: The timestamp of the latest file.
-load_latest_file:
-    Load the latest file in a directory based on its file type.
-    - file_path: The path to the file.
-    - data: The loaded data, which could be a DataFrame, GeoDataFrame, or dict.
-save_data:
-    Save a dataframe to a specified file type.
-    - data: The data to be saved.
-    - data_type: The type of data, which should be one of the keys in DATA_PATHS.
-    - file_type: The file format to save the data in.
-    - timestamp: Optional. The timestamp to use in the file name.
-    - output_file: Optional. The full path to save the file.
 '''
 
-import glob
 import json
 import pandas as pd
 import geopandas as gpd
 from pathlib import Path
 from datetime import datetime
 from .constants import *
+from typing import Dict, Optional
 
 # Get time right now in the format YYYY-MM-DD_HH-MM-SS
 grab_time = lambda: datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
@@ -131,3 +97,44 @@ def save_data(data, data_type, file_type, timestamp=None, output_file=None):
         raise ValueError(f"File type {file_type} not supported")
     
     return file_path, get_file_timestamp(file_path)
+
+def deep_update(d: dict, u: dict) -> dict:
+    """Recursively update a dictionary."""
+    for k, v in u.items():
+        if isinstance(v, dict):
+            d[k] = deep_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
+def load_config(base_path: str = "configs/base.json", 
+               scenario_path: Optional[str] = None) -> Dict:
+    """
+    Load and merge configuration files.
+    
+    Args:
+        base_path: Path to base configuration
+        scenario_path: Optional path to scenario configuration
+        
+    Returns:
+        Dict containing merged configuration
+    """
+    # Load base configuration
+    with open(base_path) as f:
+        config = json.load(f)
+    
+    # If scenario provided, merge with base
+    if scenario_path:
+        with open(scenario_path) as f:
+            scenario = json.load(f)
+        config = deep_update(config, scenario)
+    
+    return config
+
+def make_header(text: str, char: str, count: int = 70) -> str:
+    """Create a header with a given text, character, and count."""
+    return f"\n{char * count}\n{text:^{count}}\n{char * count}"
+
+def color_text(text, color_code):
+    """Color text with ANSI escape codes."""
+    return f"\033[{color_code}m{text}\033[0m"

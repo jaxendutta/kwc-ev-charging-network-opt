@@ -322,37 +322,65 @@ def plot_heatmap(m: folium.Map, data_gdf: gpd.GeoDataFrame, value_column: str, l
     
     return m
 
-def plot_population_density_map(m: folium.Map, population_data: gpd.GeoDataFrame) -> folium.Map:
+def map_population_density(m: folium.Map, 
+                          population_data: gpd.GeoDataFrame,
+                          style: str = 'heatmap') -> folium.Map:
     """
-    Add population density choropleth layer to a Folium map.
+    Add population density visualization to map.
     
     Args:
         m: Folium map object
-        population_data: GeoDataFrame containing population data with 'CTUID' and 'population_density' columns
+        population_data: GeoDataFrame with population data
+        style: 'heatmap' or 'choropleth'
         
     Returns:
-        Updated Folium map object
+        Updated map with population density layer
     """
-    # Convert CTUID to string if it's not already
-    population_data = population_data.copy()
-    population_data['CTUID'] = population_data['CTUID'].astype(str)
+    # Filter for Region of Waterloo data
+    population_data = population_data[population_data['data_source'] == 'Region of Waterloo']
+    
+    if style == 'choropleth':
+        population_data['CTUID'] = population_data['CTUID'].astype(str)
 
-    # Define the population density thresholds
-    threshold_scale = [0, 100, 825, 1750, 3500, 7000, 14000]
-
-    # Add census tracts colored by population density
-    folium.Choropleth(
-        geo_data=population_data.__geo_interface__,
-        name='Population Density',
-        data=population_data,
-        columns=['CTUID', 'population_density'],
-        key_on='feature.properties.CTUID',
-        fill_color='YlOrRd',
-        fill_opacity=0.7,
-        line_opacity=0.2,
-        threshold_scale=threshold_scale,
-        legend_name='Population Density (people/km²)'
-    ).add_to(m)
+        # Define the population density thresholds
+        threshold_scale = [0, 100, 825, 1750, 3500, 7000, 14000]# Original choropleth implementation
+        
+        folium.Choropleth(
+            geo_data=population_data.__geo_interface__,
+            name='Population Density',
+            data=population_data,
+            columns=['CTUID', 'population_density'],
+            key_on='feature.properties.CTUID',
+            fill_color='YlOrRd',
+            fill_opacity=0.7,
+            line_opacity=0.2,
+            threshold_scale=threshold_scale,
+            legend_name='Population Density (people/km²)'
+        ).add_to(m)
+    
+    else:  # heatmap
+        # Create locations and weights for heatmap
+        locations = []
+        weights = []
+        
+        # Use centroids of census tracts, weighted by population
+        for idx, row in population_data.iterrows():
+            if pd.notna(row['population']) and row['population'] > 0:
+                centroid = row.geometry.centroid
+                locations.append([centroid.y, centroid.x])
+                weights.append(float(row['population_density']))
+        
+        # Add heatmap layer
+        folium.plugins.HeatMap(
+            locations,
+            weights=weights,
+            name='Population Density',
+            min_opacity=0.3,
+            max_zoom=13,
+            radius=25,  # Adjust for smoother/sharper heatmap
+            blur=15,    # Adjust for smoother/sharper heatmap
+            gradient={0.4: 'blue', 0.65: 'lime', 0.8: 'yellow', 1: 'red'}
+        ).add_to(m)
 
     return m
 

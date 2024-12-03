@@ -1,0 +1,37 @@
+{
+    "costs": {
+        "l2_station": 20000,
+        "l3_station": 100000,
+        "l2_port": 5000,
+        "l3_port": 50000,
+        "resale_factor": 1.0
+    },
+    "coverage": {
+        "l2_radius": 0.5,
+        "l3_radius": 0.75,
+        "min_coverage_l2": 0.95,
+        "min_coverage_l3": 0.85,
+        "area_constraint_radius": 2.0
+    },
+    "infrastructure": {
+        "max_new_ports": 6,
+        "l2_power": 7.2,
+        "l3_power": 150,
+        "grid_capacity": 500,
+        "min_l3_spacing": 3.0
+    },
+    "budget": {
+        "default": 4000000,
+        "max_per_site": 500000
+    },
+    "weights": {
+        "l3_coverage": 66.6666666,
+        "l2_coverage": 33.3333333,
+        "cost": 0.0000001
+    },
+    "requirements": {
+        "min_l3_per_area": 2,
+        "min_ports_per_l3": 2
+    },
+    "run_sensitivity": true
+}

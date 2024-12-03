@@ -1,0 +1,10 @@
+{
+    "budget": {
+        "default": 5000000,
+        "max_per_site": 250000
+    },
+    "infrastructure": {
+        "max_new_ports": 4,
+        "grid_capacity": 350
+    }
+}

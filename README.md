@@ -215,14 +215,16 @@ kw-ev-charging-optimization/
 │   ├── 03_enhancement_analysis.ipynb # Network enhancement
 │   ├── 04_data_preparation.ipynb     # Model input prep
 │   └── 05_optimization_model.ipynb   # MILP optimization
+|
 ├── src/
 │   ├── data/
 │   │   ├── constants.py          # Project constants
 │   │   ├── data_manager.py       # Data processing
-│   │   └── utils.py             # Helper functions
+│   │   └── utils.py              # Helper functions
 |   |
 │   ├── model/
-│   │   └── network_optimizer.py  # Optimization model
+│   │   ├── network_optimizer.py  # Optimization Model
+|   |   └── parameters.py         # Optimization Constants
 |   |
 │   ├── visualization/
 |   |   ├── map_viz.py
@@ -230,6 +232,18 @@ kw-ev-charging-optimization/
 |   |
 |   ├── run_optimization.py
 |   └── verify_setup.py
+|
+├── config/
+|   ├── base.json
+|   |
+│   ├── scenarios/
+|   |   ├── aggressive.json
+│   │   ├── balanced.json
+│   │   └── conservative.json
+|   | 
+│   └── test/
+|       ├── high_budget.json
+│       └── low_budget.json
 |
 ├── setup.py      
 └── requirements.txt
