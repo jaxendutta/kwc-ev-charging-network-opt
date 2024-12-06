@@ -10,6 +10,8 @@ from datetime import datetime
 from .constants import *
 from typing import Dict, Optional
 
+OUTPUT_WIDTH = 80
+
 # Get time right now in the format YYYY-MM-DD_HH-MM-SS
 grab_time = lambda: datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 
@@ -131,7 +133,7 @@ def load_config(base_path: str = "configs/base.json",
     
     return config
 
-def make_header(text: str, char: str, count: int = 70) -> str:
+def make_header(text: str, char: str, count: int = OUTPUT_WIDTH) -> str:
     """Create a header with a given text, character, and count."""
     return f"\n{char * count}\n{text:^{count}}\n{char * count}"
 

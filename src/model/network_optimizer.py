@@ -12,9 +12,9 @@ import logging
 from typing import Dict, Any
 from datetime import datetime
 from haversine import haversine
-from tabulate import tabulate
 
 from src.data.utils import *
+from src.model.utils import *
 
 class EVNetworkOptimizer:
     """Network enhancement optimization model."""
@@ -179,7 +179,7 @@ class EVNetworkOptimizer:
                 'message': str(e)
             }
 
-    def perform_sensitivity_analysis(self) -> Dict[str, Any]:
+    def perform_sensitivity_analysis(self, display: bool = False) -> Dict[str, Any]:
         """Perform simplified sensitivity analysis focusing on key insights."""
         if self.model.Status != GRB.OPTIMAL:
             raise ValueError("Model must be solved optimally before performing sensitivity analysis")
@@ -232,49 +232,120 @@ class EVNetworkOptimizer:
                         sensitivity_results['insights'].append(
                             f"{name}: Achieved {achieved:.1f}% coverage (required {required:.1f}%)"
                         )
+        if display:
+            get_sensitivity_results_summary(sensitivity_results)
         
         return sensitivity_results
     
-    def get_program_documentation(self) -> Dict[str, Any]:
+    def get_program_doc(self) -> Dict[str, Any]:
         """Return comprehensive documentation of the optimization program."""
         return {
             "data_summary": {
-                "demand_points": len(self.demand_points),
-                "existing_stations": {
-                    "total": len(self.stations_df),
-                    "l2_stations": len(self.stations_df[self.stations_df['charger_type'] == 'Level 2']),
-                    "l3_stations": len(self.stations_df[self.stations_df['charger_type'] == 'Level 3'])
+                "network_data": {
+                    "demand_points": {
+                        "size": len(self.demand_points),
+                        "description": "Population demand points\nWeighted by:\n• EV Adoption (35%)\n• Infrastructure Quality (25%)\n• Population Density (20%)\n• Transit Access (15%)\n• Infrastructure Age (5%)"
+                    },
+                    "existing_l2_stations": {
+                        "size": len(self.stations_df[self.stations_df['charger_type'] == 'Level 2']),
+                        "description": "Current Level 2 charging infrastructure"
+                    },
+                    "existing_l3_stations": {
+                        "size": len(self.stations_df[self.stations_df['charger_type'] == 'Level 3']),
+                        "description": "Current Level 3 charging infrastructure"
+                    },
+                    "potential_locations": {
+                        "size": len(self.potential_sites),
+                        "description": "Candidate sites for new charging stations"
+                    }
                 },
-                "potential_sites": len(self.potential_sites)
+                "cost_parameters": {
+                    "l2_station": {
+                        "size": self.costs['l2_station'],
+                        "description": "Base cost for new L2 station"
+                    },
+                    "l3_station": {
+                        "size": self.costs['l3_station'],
+                        "description": "Base cost for new L3 station"
+                    },
+                    "l2_port": {
+                        "size": self.costs['l2_port'],
+                        "description": "Cost per L2 charging port"
+                    },
+                    "l3_port": {
+                        "size": self.costs['l3_port'],
+                        "description": "Cost per L3 charging port"
+                    },
+                    "resale_factor": {
+                        "size": self.costs['resale_factor'],
+                        "description": "Resale value factor for equipment"
+                    }
+                },
+                "infrastructure_parameters": {
+                    "max_ports": {
+                        "size": self.infrastructure['max_new_ports'],
+                        "description": "Maximum new ports per station"
+                    },
+                    "l2_power": {
+                        "size": self.infrastructure['l2_power'],
+                        "description": "L2 charger power draw (kW)"
+                    },
+                    "l3_power": {
+                        "size": self.infrastructure['l3_power'],
+                        "description": "L3 charger power draw (kW)"
+                    },
+                    "grid_capacity": {
+                        "size": self.infrastructure['grid_capacity'],
+                        "description": "Maximum grid capacity per site (kW)"
+                    }
+                },
+                "coverage_parameters": {
+                    "l2_radius": {
+                        "size": self.coverage['l2_radius'],
+                        "description": "L2 coverage radius (km)"
+                    },
+                    "l3_radius": {
+                        "size": self.coverage['l3_radius'],
+                        "description": "L3 coverage radius (km)"
+                    },
+                    "min_l2_coverage": {
+                        "size": self.coverage['min_coverage_l2'],
+                        "description": "Minimum L2 population coverage"
+                    },
+                    "min_l3_coverage": {
+                        "size": self.coverage['min_coverage_l3'],
+                        "description": "Minimum L3 population coverage"
+                    }
+                }
             },
             
             "decision_variables": {
                 "new_l2_stations": {
                     "type": "Binary",
                     "dimension": len(self.potential_sites),
-                    "description": "1 if new L2 station placed at site i, 0 otherwise"
+                    "description": "1 if new L2 station placed at site i"
                 },
                 "new_l3_stations": {
                     "type": "Binary",
                     "dimension": len(self.potential_sites),
-                    "description": "1 if new L3 station placed at site i, 0 otherwise"
+                    "description": "1 if new L3 station placed at site i"
                 },
                 "upgrades": {
                     "type": "Binary",
                     "dimension": len(self.potential_sites),
-                    "description": "1 if L2 station at site i is upgraded to L3, 0 otherwise"
+                    "description": "1 if existing L2 station at site i upgraded to L3"
                 },
                 "new_l2_ports": {
                     "type": "Integer",
                     "dimension": len(self.potential_sites),
                     "bounds": [0, self.infrastructure['max_new_ports']],
-                    "description": "Number of new L2 ports added at site i"
+                    "description": "Number of L2 ports added at site i"
                 },
                 "new_l3_ports": {
                     "type": "Integer",
                     "dimension": len(self.potential_sites),
                     "bounds": [0, self.infrastructure['max_new_ports']],
-                    "description": "Number of new L3 ports added at site i"
+                    "description": "Number of L3 ports added at site i"
                 }
             },
             
@@ -282,37 +353,34 @@ class EVNetworkOptimizer:
                 "budget": {
                     "type": "Linear",
                     "bound": self.budget['default'],
-                    "description": "Total cost must not exceed budget"
+                    "description": f"Total cost must not exceed ${self.budget['default']:,}"
                 },
-                "coverage": {
-                    "l2_coverage": {
-                        "type": "Linear",
-                        "bound": self.coverage['min_coverage_l2'],
-                        "description": f"At least {self.coverage['min_coverage_l2']*100}% population coverage within {self.coverage['l2_radius']}km for L2"
-                    },
-                    "l3_coverage": {
-                        "type": "Linear",
-                        "bound": self.coverage['min_coverage_l3'],
-                        "description": f"At least {self.coverage['min_coverage_l3']*100}% population coverage within {self.coverage['l3_radius']}km for L3"
-                    }
+                "l2_coverage": {
+                    "type": "Linear",
+                    "bound": self.coverage['min_coverage_l2'],
+                    "description": f"At least {self.coverage['min_coverage_l2']*100}% population within {self.coverage['l2_radius']}km of L2"
                 },
-                "infrastructure": {
-                    "grid_capacity": {
-                        "type": "Linear",
-                        "bound": self.infrastructure['grid_capacity'],
-                        "description": "Total power demand at each site must not exceed grid capacity"
-                    },
-                    "min_l3_ports": {
-                        "type": "Linear",
-                        "bound": self.requirements['min_ports_per_l3'],
-                        "description": "Minimum number of ports required for L3 stations"
-                    }
+                "l3_coverage": {
+                    "type": "Linear",
+                    "bound": self.coverage['min_coverage_l3'],
+                    "description": f"At least {self.coverage['min_coverage_l3']*100}% population within {self.coverage['l3_radius']}km of L3"
+                },
+                "grid_capacity": {
+                    "type": "Linear",
+                    "bound": self.infrastructure['grid_capacity'],
+                    "description": f"Maximum {self.infrastructure['grid_capacity']}kW power demand per site"
+                },
+                "min_l3_ports": {
+                    "type": "Linear",
+                    "bound": self.requirements['min_ports_per_l3'],
+                    "description": f"Minimum {self.requirements['min_ports_per_l3']} ports per L3 station"
                 },
                 "logical": [
-                    "Cannot have both L2 and L3 stations at same location",
-                    "L2 ports can only be added to L2 or L3 stations",
-                    "L3 ports can only be added to L3 stations",
-                    "New stations must have at least one port"
+                    "Cannot have both L2 and L3 stations at same site",
+                    "L2 ports require L2 or L3 station at site",
+                    "L3 ports require L3 station at site",
+                    "New stations must have at least one port",
+                    "L3 stations must have minimum port requirement"
                 ]
             },
             
@@ -321,30 +389,16 @@ class EVNetworkOptimizer:
                 "components": {
                     "l3_coverage": {
                         "weight": self.weights['l3_coverage'],
-                        "description": "Maximize population coverage by L3 chargers"
+                        "description": "Maximize L3 charging coverage"
                     },
                     "l2_coverage": {
                         "weight": self.weights['l2_coverage'],
-                        "description": "Maximize population coverage by L2 chargers"
+                        "description": "Maximize L2 charging coverage" 
                     },
                     "cost": {
                         "weight": self.weights['cost'],
-                        "description": "Minimize total cost"
+                        "description": "Minimize total infrastructure cost"
                     }
-                }
-            },
-            
-            "parameters": {
-                "costs": self.costs,
-                "coverage_radii": {
-                    "l2_radius": self.coverage['l2_radius'],
-                    "l3_radius": self.coverage['l3_radius']
-                },
-                "infrastructure": {
-                    "grid_capacity": self.infrastructure['grid_capacity'],
-                    "max_new_ports": self.infrastructure['max_new_ports'],
-                    "l2_power": self.infrastructure['l2_power'],
-                    "l3_power": self.infrastructure['l3_power']
                 }
             }
         }
@@ -1098,133 +1152,3 @@ class EVNetworkOptimizer:
             return self.costs['l2_station'] + num_ports * self.costs['l2_port']
         elif charger_type == 'Level 3':
             return self.costs['l3_station'] + num_ports * self.costs['l3_port']
-
-    # ----------------
-    # Display Methods
-    # ----------------
-
-    def display_sensitivity_results(self, sensitivity_results: Dict[str, Any]) -> None:
-        """Display formatted sensitivity analysis results.
-
-        Args:
-            sensitivity_results: Dictionary containing sensitivity analysis data
-        """
-        print(make_header("Sensitivity Analysis".upper(), "="))
-        
-        # Print insights
-        print("\nKey Insights:")
-        print("-" * 50)
-        for i, insight in enumerate(sensitivity_results['insights'], 1):
-            print(f"{i}. {insight}")
-
-        # Print constraint analysis
-        print(make_header("Constraint Analysis", "-"))
-        print("\nConstraint Analysis:")
-        headers = ["Constraint", "Required", "Achieved", "Utilization"]
-        constraint_data = []
-
-        for name, values in sensitivity_results['constraints'].items():
-            rhs = values['rhs']
-            achieved = rhs - values['slack']
-            utilization = values['utilization']
-            
-            if 'Budget' in name:
-                required = f"${rhs:,.2f}"
-                achieved = f"${achieved:,.2f}"
-            else:
-                required = f"{rhs*100:.1f}%"
-                achieved = f"{(rhs - values['slack'])*100:.1f}%"
-            
-            constraint_data.append([
-                name,
-                required,
-                achieved,
-                f"{utilization:.1f}%"
-            ])
-
-        print(tabulate(constraint_data, headers=headers, tablefmt="grid"))
-
-    # ----------------
-    # Implementation Plan Methods
-    # ----------------
-    def get_implementation_plan(self, solution: dict) -> pd.DataFrame:
-        """Display implementation plan with detailed breakdown."""
-        
-        print(make_header("Implementation Plan".upper(), "="))
-
-        print(make_header("Phase Details", "-"))
-        print("Phase 1: L2 to L3 Upgrades")
-        print("   • Convert existing L2 stations to L3")
-        print("   • Install new L3 ports")
-        print("   • Upgrade electrical infrastructure")
-        
-        print("\nPhase 2: New L3 Stations")
-        print("   • Install new L3 stations")
-        print("   • Add L3 charging ports")
-        print("   • Implement grid connections")
-        
-        print("\nPhase 3: New L2 Network")
-        print("   • Install new L2 stations")
-        print("   • Add L2 charging ports")
-        print("   • Complete network coverage")
-        
-        print(make_header("Detailed Phase Analysis", "-"))
-
-        # Initialize phase stats
-        phases = {
-            1: {'actions': 0, 'stations': 0, 'ports': 0, 'cost': 0.0},
-            2: {'actions': 0, 'stations': 0, 'ports': 0, 'cost': 0.0},
-            3: {'actions': 0, 'stations': 0, 'ports': 0, 'cost': 0.0}
-        }
-        
-        # Phase 1: L2 to L3 Upgrades
-        for station in solution['stations']['upgrades']:
-            phase = phases[1]
-            phase['actions'] += 1 + station['charging']['new_ports']
-            phase['stations'] += 1
-            phase['ports'] += station['charging']['new_ports']
-            phase['cost'] += station['implementation']['estimated_upgrade_cost']
-        
-        for station in solution['stations']['new']:
-            # Phase 2: New L3 Stations
-            if station['charging']['charger_type'] == 'Level 3':
-                phase = phases[2]
-                phase['actions'] += 1 + station['charging']['num_ports']
-                phase['stations'] += 1
-                phase['ports'] += station['charging']['num_ports']
-                phase['cost'] += station['implementation']['estimated_installation_cost']
-        
-            # Phase 3: New L2 Stations
-            if station['charging']['charger_type'] == 'Level 2':
-                phase = phases[3]
-                phase['actions'] += 1 + station['charging']['num_ports']
-                phase['stations'] += 1
-                phase['ports'] += station['charging']['num_ports']
-                phase['cost'] += station['implementation']['estimated_installation_cost']
-
-        # Create DataFrame with correct index alignment
-        phase_summary = pd.DataFrame([phases[i] for i in range(1, 4)],
-                                columns=['actions', 'stations', 'ports', 'cost'])
-        phase_summary.index = range(1, 4)
-        phase_summary.index.name = 'Phase'
-
-        # Rename columns
-        phase_summary.columns = ['Actions', 'Stations Modified', 'Ports Added', 'Estimated Cost']
-
-        # Create formatters for each column
-        formatters = {
-            'Actions': '{:,.0f}',
-            'Stations Modified': '{:,.0f}',
-            'Ports Added': '{:,.0f}',
-            'Estimated Cost': '${:,.2f}'
-        }
-
-        # Format each column
-        for col, formatter in formatters.items():
-            phase_summary[col] = phase_summary[col].apply(lambda x: formatter.format(x))
-
-        # Print the table
-        print(tabulate(phase_summary, headers='keys', tablefmt='grid', showindex=True,
-                       colalign=('center', 'center', 'center', 'center', 'decimal')))
-        
-        return phase_summary

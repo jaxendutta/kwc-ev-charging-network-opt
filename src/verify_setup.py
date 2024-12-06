@@ -5,6 +5,7 @@ verify_setup.py - Verifies the setup for the KW EV Charging Station Optimization
 import sys
 import os
 import requests
+import time
 from importlib.metadata import version, PackageNotFoundError
 from data.constants import *
 
@@ -226,4 +227,15 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    start_time = time.time()
     main()
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    hours, rem = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if hours > 0:
+        print(f"[Operation concluded in {int(hours)}h {int(minutes)}m {seconds:.2f}s]\n")
+    elif minutes > 0:
+        print(f"[Operation concluded in {int(minutes)}m {seconds:.2f}s]\n")
+    else:
+        print(f"[Operation concluded in {seconds:.2f}s]\n")

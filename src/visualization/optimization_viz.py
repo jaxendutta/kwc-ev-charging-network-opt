@@ -5,7 +5,7 @@ Visualization utilities for optimization results.
 import folium
 import matplotlib.pyplot as plt
 import pandas as pd
-from typing import Dict, Any
+from typing import Dict, Any, List
 from pathlib import Path
 
 from src.visualization.map_viz import *
@@ -181,16 +181,10 @@ def create_results_map(solution: Dict[str, Any],
             text = text.replace(k, v)
 
         return text
-
-    # Helper function to standardize status
-    def standardize_status(status: str) -> str:
-        """Standardize status string to handle case variations."""
-        status = status.replace('l2', 'L2').replace('l3', 'L3')
-        return status
     
     # Add coverage visualization
-    coverage_l2 = folium.FeatureGroup(name=f'L2 Coverage ({config["coverage"]["l2_radius"]}km)')
-    coverage_l3 = folium.FeatureGroup(name=f'L3 Coverage ({config["coverage"]["l3_radius"]}km)')
+    coverage_l2 = folium.FeatureGroup(name=f"L2 Coverage ({config['coverage']['l2_radius']}km)")
+    coverage_l3 = folium.FeatureGroup(name=f"L3 Coverage ({config['coverage']['l3_radius']}km)")
     
     # Process existing stations
     for station in solution['stations']['existing']:
@@ -377,7 +371,7 @@ def create_results_map(solution: Dict[str, Any],
         
     return m
 
-def plot_sensitivity_results(sensitivity_results: Dict[str, Any],
+def plot_sensitivity_analysis(sensitivity_results: Dict[str, Any],
                              save_path: Optional[str] = None) -> plt.Figure:
     """
     Create visualization of sensitivity analysis results.
@@ -447,18 +441,25 @@ def plot_sensitivity_results(sensitivity_results: Dict[str, Any],
     plt.close(fig)
     return fig
 
-def plot_implementation_plan(plan: Dict, save_path: Optional[str] = None) -> plt.Figure:
+def plot_implementation_plan(plan: List[Dict], save_path: Optional[str] = None) -> plt.Figure:
     # Create subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
 
+    # Convert list of dicts to DataFrame
+    phase_data = pd.DataFrame(plan)
+    
     # Convert string formatted numbers back to numeric
-    phase_data = plan.copy()
-    phase_data['Stations Modified'] = phase_data['Stations Modified'].apply(lambda x: float(x.replace(',', '')))
-    phase_data['Ports Added'] = phase_data['Ports Added'].apply(lambda x: float(x.replace(',', '')))
-    phase_data['Actions'] = phase_data['Actions'].apply(lambda x: float(x.replace(',', '')))
-    phase_data['Estimated Cost'] = phase_data['Estimated Cost'].apply(lambda x: float(x.replace('$', '').replace(',', '')))
+    numeric_columns = {
+        'Stations Modified': lambda x: float(x.replace(',', '')),
+        'Ports Added': lambda x: float(x.replace(',', '')),
+        'Actions': lambda x: float(x.replace(',', '')),
+        'Estimated Cost': lambda x: float(x.replace('$', '').replace(',', ''))
+    }
 
-    # Plot 1: Infrastructure Changes
+    for col, converter in numeric_columns.items():
+        phase_data[col] = phase_data[col].apply(converter)
+
+    # Rest of the function remains the same
     x = np.arange(3)  # For 3 phases
     width = 0.25  # Width of bars
 
