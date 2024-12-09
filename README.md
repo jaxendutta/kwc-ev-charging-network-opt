@@ -161,7 +161,7 @@ The project covers the entire KWC-CMA region including:
 
 ```mermaid
 graph TD
-    A[Data Collection] -->|data_manager.py| B[Raw Data Storage]
+    A[Data Collection] -->│data_manager.py│ B[Raw Data Storage]
     B --> C[Data Processing]
     
     subgraph "Primary Data Sources"
@@ -267,17 +267,17 @@ The project creates sophisticated demand points to represent charging needs thro
 
 ```mermaid
 graph LR
-    A[Census Tracts] -->|Population Weighting| B[Base Points]
-    C[Transit Data] -->|Accessibility Score| D[Transit Factor]
-    E[EV Ownership] -->|Density Analysis| F[EV Factor]
-    G[Infrastructure] -->|Quality Assessment| H[Infrastructure Factor]
+    A[Census Tracts] -->│Population Weighting│ B[Base Points]
+    C[Transit Data] -->│Accessibility Score│ D[Transit Factor]
+    E[EV Ownership] -->│Density Analysis│ F[EV Factor]
+    G[Infrastructure] -->│Quality Assessment│ H[Infrastructure Factor]
     
     B --> I[Demand Points]
     D --> I
     F --> I
     H --> I
     
-    I -->|Score Calculation| J[Final Weighted Points]
+    I -->│Score Calculation│ J[Final Weighted Points]
   ```
 
 #### 2.3.1. Population-Based Points: Base Generation
@@ -395,8 +395,9 @@ graph TD
         G --> D
     end
     
-    G -->|Convergence| H[Final Solution]
+    G -->│Convergence│ H[Final Solution]
     H --> I[Implementation Planning]
+    H --> J[Sensitivity Analysis]
 ```
 
 #### 3.3.1. Model Configuration (`network_optimizer.py`)
@@ -675,20 +676,20 @@ python src/run_optimization.py --output custom_results
 results/
   └── results_YYYYMMDD_HHMMSS/
       ├── config.json
-      |
+      │
       ├── implementation_plan.json
       ├── implementation_plan.png
       ├── implementation_plan.txt
-      |
+      │
       ├── optimization.log
-      |
+      │
       ├── program.json
       ├── program.txt
-      |
+      │
       ├── sensitivity_analysis.json
       ├── sensitivity_analysis.png
       ├── sensitivity_analysis.txt
-      |
+      │
       ├── solution.json
       ├── solution.png
       ├── solution.txt
@@ -743,9 +744,9 @@ ROOT/
 │   └── 05_optimization_model.ipynb
 │
 ├── src/                              # Source code
-|   ├── run_optimization.py           # Run model on the terminal
-|   ├── verify_setup.py               # Verify environment setup
-|   |
+│   ├── run_optimization.py           # Run model on the terminal
+│   ├── verify_setup.py               # Verify environment setup
+│   │
 │   ├── data/                         # Data processing
 │   │   ├── constants.py              # Project constants
 │   │   ├── data_manager.py           # Data handling
@@ -764,7 +765,7 @@ ROOT/
 │   └── scenarios/                    # Scenario configs
 │
 ├── tests/                            # Unit tests
-|
+│
 ├── requirements.py
 └── setup.py
 ```
