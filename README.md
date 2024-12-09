@@ -84,14 +84,17 @@ A comprehensive mixed-integer linear programming (MILP) optimization model for s
     - [9.1. Model Definition](#91-model-definition)
     - [9.2. Decision Variables](#92-decision-variables)
     - [9.3. Parameters](#93-parameters)
-    - [9.4. Objective Function](#94-objective-function)
-    - [9.5. Constraints](#95-constraints)
+      - [1. Coverage Parameters](#1-coverage-parameters)
+      - [2. Cost Parameters](#2-cost-parameters)
+      - [3. Infrastructure Parameters](#3-infrastructure-parameters)
+    - [9.4. Constraints](#94-constraints)
       - [1. Coverage Constraints](#1-coverage-constraints)
       - [2. Budget Constraints](#2-budget-constraints)
       - [3. Grid Capacity Constraints](#3-grid-capacity-constraints)
       - [4. Logical Constraints](#4-logical-constraints)
       - [5. Service Area Constraints](#5-service-area-constraints)
       - [6. Non-Negativity and Integrality](#6-non-negativity-and-integrality)
+    - [9.5. Objective Function](#95-objective-function)
 
 ## 1. Project Overview
 
@@ -868,8 +871,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### 8.3. Grid Capacity
 1. [HydroOne (December 10, 2021): Kitchener-Waterloo-Cambridge-Guelph Regional Infrastructure Plan](https://www.hydroone.com/abouthydroone/CorporateInformation/regionalplans/kitchenerwaterloocambridgeguelph/Documents/RIP_Report_KWCG.pdf)
 1. [HydroOne (May 2024): Kitchener-Waterloo-Cambridge-Guelph Regional Planning](https://web.archive.org/web/20241209022829/https://www.hydroone.com/about/corporate-information/regional-plans/kitchener-waterloo-cambridge-guelph)
-2. 1. [IESO (May 6, 2021): Kitchener-Waterloo-Cambridge-Guelph Region Integrated Regional Resource Plan](https://www.ieso.ca/-/media/Files/IESO/Document-Library/regional-planning/KWCG/KWCG-IRRP-May-2021.pdf)
-3. [IESO (May 6, 2021): Kitchener-Waterloo-Cambridge-Guelph Region Integrated Regional Resource Plan Appendices](https://www.ieso.ca/-/media/Files/IESO/Document-Library/regional-planning/KWCG/KWCG-IRRP-May-2021-Appendices.pdf)
+1. [IESO (May 6, 2021): Kitchener-Waterloo-Cambridge-Guelph Region Integrated Regional Resource Plan](https://www.ieso.ca/-/media/Files/IESO/Document-Library/regional-planning/KWCG/KWCG-IRRP-May-2021.pdf)
+1. [IESO (May 6, 2021): Kitchener-Waterloo-Cambridge-Guelph Region Integrated Regional Resource Plan Appendices](https://www.ieso.ca/-/media/Files/IESO/Document-Library/regional-planning/KWCG/KWCG-IRRP-May-2021-Appendices.pdf)
 
 ## 9. Appendix: Mathematical Model Formulation
 
@@ -895,11 +898,11 @@ $$
 & y_i \in \{0,1\} && \forall i \in I && \text{1 if new L2 station placed at i} \\
 & z_i \in \{0,1\} && \forall i \in I && \text{1 if new L3 station placed at i} \\
 & u_k \in \{0,1\} && \forall k \in K && \text{1 if L2 station k upgraded to L3} \\
-\\
+\\ \\
 & \text{Port Allocation:} \\
 & p2_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L2 ports at i} \\
 & p3_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L3 ports at i} \\
-\\
+\\ \\
 & \text{Coverage Variables:} \\
 & c2_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L2} \\
 & c3_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L3}
@@ -908,43 +911,39 @@ $$
 
 ### 9.3. Parameters
 
+#### 1. Coverage Parameters
 $$
 \begin{aligned}
-& \text{Coverage Parameters:} \\
-& R_2 = 0.5 && \text{L2 coverage radius (km)} \\
-& R_3 = 5.0 && \text{L3 coverage radius (km)} \\
-& \alpha = 0.95 && \text{Minimum required L2 coverage} \\
-& \beta = 0.85 && \text{Minimum required L3 coverage} \\
-\\
-& \text{Cost Parameters:} \\
-& C_{L2} && \text{Cost of new L2 station (\$20,000)} \\
-& C_{L3} && \text{Cost of new L3 station (\$100,000)} \\
-& C_{P2} && \text{Cost per L2 port (\$5,000)} \\
-& C_{P3} && \text{Cost per L3 port (\$50,000)} \\
+& R_2 && \text{L2 coverage radius (km)} \\
+& R_3 && \text{L3 coverage radius (km)} \\
+& \alpha && \text{Minimum required L2 coverage} \\
+& \beta && \text{Minimum required L3 coverage}
+\end{aligned}
+$$
+
+#### 2. Cost Parameters
+$$
+\begin{aligned}
+& C_{L2} && \text{Cost of new L2 station} \\
+& C_{L3} && \text{Cost of new L3 station} \\
+& C_{P2} && \text{Cost per L2 port} \\
+& C_{P3} && \text{Cost per L3 port} \\
 & C_U && \text{Cost of L2 to L3 upgrade} \\
-& B && \text{Total available budget} \\
-\\
-& \text{Infrastructure Parameters:} \\
+& B && \text{Total available budget}
+\end{aligned}
+$$
+
+#### 3. Infrastructure Parameters
+$$
+\begin{aligned}
 & G_i && \text{Grid capacity at location } i \text{ (kW)} \\
-& P_2 = 19.2 && \text{Power per L2 port (kW)} \\
-& P_3 = 350 && \text{Power per L3 port (kW)} \\
+& P_2 && \text{Power per L2 port (kW)} \\
+& P_3 && \text{Power per L3 port (kW)} \\
 & M && \text{Maximum ports per station}
 \end{aligned}
 $$
 
-### 9.4. Objective Function
-
-$$
-\begin{aligned}
-\text{Maximize: } & w_1 \sum_{j \in J} c3_j \cdot w_j + w_2 \sum_{j \in J} c2_j \cdot w_j - w_3 \cdot \text{Cost}
-\end{aligned}
-$$
-
-where:
-- $w_j$ is the population weight at demand point j
-- $w_1, w_2, w_3$ are objective weights for L3 coverage, L2 coverage, and cost respectively
-
-### 9.5. Constraints
+### 9.4. Constraints
 
 #### 1. Coverage Constraints
 
@@ -953,7 +952,7 @@ $$
 & \text{L2 Coverage Requirements:} \\
 & c2_j \leq \sum_{i \in I_j^2} (y_i + z_i) + \sum_{k \in K_j^2} (1-u_k) && \forall j \in J \\
 & \sum_{j \in J} c2_j \cdot w_j \geq \alpha && \text{Minimum L2 coverage} \\
-\\
+\\ \\
 & \text{L3 Coverage Requirements:} \\
 & c3_j \leq \sum_{i \in I_j^3} z_i + \sum_{k \in K_j^3} u_k && \forall j \in J \\
 & \sum_{j \in J} c3_j \cdot w_j \geq \beta && \text{Minimum L3 coverage}
@@ -988,7 +987,7 @@ $$
 \begin{aligned}
 & \text{Power Limitations:} \\
 & P_2 \cdot p2_i + P_3 \cdot p3_i \leq G_i && \forall i \in I \\
-\\
+\\ \\
 & \text{Existing Station Power:} \\
 & P_2 \cdot p2_k \cdot (1-u_k) + P_3 \cdot p3_k \cdot u_k \leq G_k && \forall k \in K
 \end{aligned}
@@ -1000,11 +999,11 @@ $$
 \begin{aligned}
 & \text{Station Type Exclusivity:} \\
 & y_i + z_i \leq 1 && \forall i \in I \\
-\\
+\\ \\
 & \text{Port Assignment Rules:} \\
 & p2_i \leq M \cdot (y_i + z_i) && \forall i \in I \\
 & p3_i \leq M \cdot (z_i + u_i) && \forall i \in I \\
-\\
+\\ \\
 & \text{Minimum Port Requirements:} \\
 & p2_i \geq y_i && \forall i \in I \\
 & p3_i \geq 2(z_i + u_i) && \forall i \in I
@@ -1017,7 +1016,7 @@ $$
 \begin{aligned}
 & \text{Maximum L3 Stations per Area:} \\
 & \sum_{i \in A} (z_i + u_i) \leq N_A && \forall \text{ area } A \\
-\\
+\\ \\
 & \text{L3 Station Spacing:} \\
 & d_{ij} \cdot (z_i + u_i) \cdot (z_j + u_j) \geq D_{min} && \forall i,j \in I, i \neq j
 \end{aligned}
@@ -1038,3 +1037,15 @@ $$
 & \forall i \in I, k \in K, j \in J
 \end{aligned}
 $$
+
+### 9.5. Objective Function
+
+$$
+\begin{aligned}
+\text{Maximize: } & w_1 \sum_{j \in J} c3_j \cdot w_j + w_2 \sum_{j \in J} c2_j \cdot w_j - w_3 \cdot \text{Cost}
+\end{aligned}
+$$
+
+where:
+- $w_j$ is the population weight at demand point j
+- $w_1, w_2, w_3$ are objective weights for L3 coverage, L2 coverage, and cost respectively
