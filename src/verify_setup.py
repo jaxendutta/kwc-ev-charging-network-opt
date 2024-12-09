@@ -4,10 +4,26 @@ verify_setup.py - Verifies the setup for the KW EV Charging Station Optimization
 
 import sys
 import os
-import requests
 import time
+import subprocess
+from pathlib import Path
 from importlib.metadata import version, PackageNotFoundError
-from data.constants import *
+
+# Get project root without importing from package
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+def install_project_package():
+    """Install the project package in editable mode."""
+    print("\nInstalling project package...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-e", str(PROJECT_ROOT)])
+        print("✓ Project package installed successfully")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Error installing project package: {str(e)}")
+        print("Please try installing manually using:")
+        print(f"pip install -e {PROJECT_ROOT}")
+        return False
 
 def check_python_version():
     """Check if Python version meets requirements."""
@@ -49,14 +65,26 @@ def check_dependencies():
     
     print("\nChecking package dependencies...")
     with open(requirements_file) as f:
-        requirements = f.read().splitlines()
+        lines = f.read().splitlines()
     
+    current_category = None
     all_satisfied = True
     missing_packages = []
     
-    for requirement in requirements:
-        if requirement.strip() and not requirement.startswith('#'):
-            pkg_requirement = requirement.strip()
+    for line in lines:
+        if not line.strip():
+            continue
+            
+        if line.startswith('#'):
+            current_category = line.strip('# \n')
+            if missing_packages:  # Print any missing packages from previous category
+                print(f"\nMissing {current_category} packages:")
+                for pkg in missing_packages:
+                    print(f"  ✗ {pkg}")
+                missing_packages = []
+            print(f"\n{current_category}:")
+        elif not line.startswith('#'):
+            pkg_requirement = line.strip()
             pkg_name = pkg_requirement.split('>=')[0].strip()
             try:
                 pkg_version = version(pkg_name)
@@ -69,7 +97,6 @@ def check_dependencies():
     if missing_packages:
         print("\nAttempting to install missing packages...")
         try:
-            import subprocess
             subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing_packages)
             print("✓ Successfully installed missing packages")
             all_satisfied = True
@@ -83,6 +110,9 @@ def check_dependencies():
 
 def check_directory_structure():
     """Check if the required directory structure exists."""
+    # Import here after project package is installed
+    from data.constants import DATA_PATHS
+    
     print("\nChecking data files directory structure...")
     
     all_exist = True
@@ -102,6 +132,9 @@ def check_directory_structure():
 
 def check_source_code_files():
     """Check if necessary source code files exist."""
+    # Import here after project package is installed
+    from data.constants import SOURCE_CODE_FILES
+    
     print("\nChecking source code files...")
         
     all_exist = True
@@ -175,6 +208,7 @@ def check_row_opendata_api():
     """Check if the Region of Waterloo Open Data API is accessible."""
     print("\nChecking Region of Waterloo Open Data API connectivity...")
     try:
+        import requests
         url = "https://services1.arcgis.com/qAo1OsXi67t7XgmS/arcgis/rest/services/Little_Libraries/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
         response = requests.get(url)
         
@@ -206,14 +240,23 @@ def main():
     print(f"Project Root: {PROJECT_ROOT}")
     print("=" * 60)
     
+    # First phase: Installation
+    if not check_python_version():
+        sys.exit(1)
+        
+    if not check_dependencies():
+        sys.exit(1)
+        
+    if not install_project_package():
+        sys.exit(1)
+    
+    # Second phase: Verification (after installations)
     checks = [
-        check_python_version(),
         check_gurobi_license(),
         check_api_keys(),
         check_openstreetmap_api(),
         check_openchargemap_api(),
         check_row_opendata_api(),
-        check_dependencies(),
         check_directory_structure(),
         check_source_code_files()
     ]

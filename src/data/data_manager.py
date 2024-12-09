@@ -47,16 +47,13 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import osmnx as ox
 import pyproj
-from shapely.geometry import Point, Polygon, MultiPolygon, box, shape
+from shapely.geometry import Point, box
 from shapely import ops
 from dotenv import load_dotenv
 import hashlib
-import warnings
 from ratelimit import limits, sleep_and_retry
 from tqdm import tqdm
 from scipy.spatial.distance import pdist
-from tabulate import tabulate
-from scipy.spatial.distance import pdist, squareform, cdist
 import zipfile
 
 from .constants import *

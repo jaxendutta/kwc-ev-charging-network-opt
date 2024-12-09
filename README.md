@@ -46,6 +46,12 @@ A comprehensive mixed-integer linear programming (MILP) optimization model for s
     - [4.1. Environment Setup](#41-environment-setup)
       - [4.1.1 Prerequisites](#411-prerequisites)
       - [4.1.2. Core Dependencies](#412-core-dependencies)
+- [Core Data Processing](#core-data-processing)
+- [Geospatial Analysis](#geospatial-analysis)
+- [Optimization](#optimization)
+- [Visualization](#visualization)
+- [API \& Network](#api--network)
+- [Progress \& Formatting](#progress--formatting)
     - [4.2. Installation](#42-installation)
       - [4.2.1. Base Setup](#421-base-setup)
       - [4.2.2. API Configuration](#422-api-configuration)
@@ -554,26 +560,37 @@ graph LR
 - Python 3.12.7 or higher
 - Gurobi Optimizer License
 - OpenChargeMap API key
-- Python virtual environment manager
-- Git
 
 #### 4.1.2. Core Dependencies
-- **Data Processing**:
-  - pandas
-  - geopandas
-  - numpy
-  - osmnx
 
-- **Optimization**:
-  - gurobipy
-  - scipy
-  - scikit-learn
+# Core Data Processing
+- numpy
+- pandas
+- scipy
 
-- **Visualization**:
-  - folium
-  - matplotlib
-  - seaborn
-  - branca
+# Geospatial Analysis
+- geopandas
+- pyproj
+- shapely
+- osmnx
+- haversine
+
+# Optimization
+- gurobipy
+
+# Visualization
+- matplotlib
+- folium
+- branca
+
+# API & Network
+- requests
+- ratelimit
+- python-dotenv
+
+# Progress & Formatting
+- tqdm
+- tabulate
 
 ### 4.2. Installation
 
