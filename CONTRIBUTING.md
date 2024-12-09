@@ -1,29 +1,40 @@
-# Contributing to KW EV Charging Station Optimization
+# Contributions
 
-We welcome contributions to the KW EV Charging Station Optimization project! This document provides guidelines and information for contributors.
+We welcome contributions to the KWC EV Charging Station Network Optimization project! This document outlines the process for contributing to the project.
 
 ## Table of Contents
-- [Contributing to KW EV Charging Station Optimization](#contributing-to-kw-ev-charging-station-optimization)
+- [Contributions](#contributions)
   - [Table of Contents](#table-of-contents)
   - [Development Setup](#development-setup)
+    - [Prerequisites](#prerequisites)
     - [Environment Setup](#environment-setup)
-    - [Development Installation](#development-installation)
   - [Development Workflow](#development-workflow)
-    - [1. Branching Strategy](#1-branching-strategy)
-    - [2. Code Style](#2-code-style)
-    - [3. Testing](#3-testing)
-    - [4. Documentation](#4-documentation)
+    - [Branch Strategy](#branch-strategy)
+    - [Testing](#testing)
+  - [Code Standards](#code-standards)
+    - [Style Guidelines](#style-guidelines)
+    - [Documentation Requirements](#documentation-requirements)
+    - [Import Organization](#import-organization)
   - [Making Changes](#making-changes)
-    - [1. Creating a New Feature](#1-creating-a-new-feature)
-    - [2. Fixing Bugs](#2-fixing-bugs)
-    - [3. Improving Documentation](#3-improving-documentation)
+    - [Adding Features](#adding-features)
+    - [Fixing Bugs](#fixing-bugs)
+    - [Modifying the Model](#modifying-the-model)
   - [Pull Request Process](#pull-request-process)
   - [Data Management](#data-management)
-  - [Common Development Tasks](#common-development-tasks)
-  - [Project Structure Guidelines](#project-structure-guidelines)
+    - [Data Structure](#data-structure)
+    - [Data Guidelines](#data-guidelines)
+  - [Project Organization](#project-organization)
+    - [Directory Structure](#directory-structure)
+    - [Key Components](#key-components)
   - [Contact](#contact)
 
 ## Development Setup
+
+### Prerequisites
+- Python 3.12.7 or higher
+- Gurobi Optimizer License
+- OpenChargeMap API key
+- Git
 
 ### Environment Setup
 1. Fork the repository
@@ -33,179 +44,145 @@ We welcome contributions to the KW EV Charging Station Optimization project! Thi
    cd kw-ev-charging-optimization
    ```
 
-3. Set up virtual environment:
+3. Create virtual environment:
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-### Development Installation
-1. Install in editable mode with development dependencies:
+4. Install in development mode:
    ```bash
-   pip install -e ".[dev]"
+   pip install -e .
    ```
 
-2. Install pre-commit hooks:
+5. Configure environment:
    ```bash
-   pre-commit install
+   cp .env.example .env
+   # Edit .env with your API keys
    ```
 
 ## Development Workflow
 
-### 1. Branching Strategy
-- `main` - stable production code
-- `develop` - development branch
-- Feature branches: `feature/your-feature-name`
-- Bug fix branches: `fix/bug-description`
-- Documentation branches: `docs/description`
+### Branch Strategy
+- `main`: Production-ready code
+- `develop`: Integration branch
+- Feature branches: `feature/description`
+- Bug fixes: `fix/description`
+- Documentation: `docs/description`
 
-### 2. Code Style
-We follow PEP 8 with additional conventions:
+### Testing
+- Run tests: `pytest tests/`
+- Check coverage: `pytest --cov=src tests/`
+- Verify setup: `python src/verify_setup.py`
 
-1. Use Black for formatting:
-   ```bash
-   black src/ tests/
-   ```
+## Code Standards
 
-2. Line length: 88 characters (Black default)
+### Style Guidelines
+- Follow PEP 8
+- Use type hints for all functions
+- Maximum line length: 88 characters
+- Comprehensive docstrings
 
-3. Import order:
-   ```python
-   # Standard library
-   import os
-   import sys
-   
-   # Third-party packages
-   import numpy as np
-   import pandas as pd
-   
-   # Local modules
-   from src.data import utils
-   ```
+### Documentation Requirements
+- Function docstrings with:
+  - Purpose
+  - Parameters
+  - Returns
+  - Examples
+- Module documentation
+- Updated README for new features
 
-4. Documentation strings:
-   ```python
-   def function_name(param1: type, param2: type) -> return_type:
-       """Short description.
-       
-       Detailed description of function behavior.
-       
-       Args:
-           param1: Description of param1
-           param2: Description of param2
-           
-       Returns:
-           Description of return value
-           
-       Raises:
-           ExceptionType: Description of when this exception occurs
-       """
-   ```
+### Import Organization
+```python
+# Standard library
+import os
+import sys
 
-### 3. Testing
-1. Write tests for new features:
-   ```python
-   # tests/test_module.py
-   def test_new_feature():
-       """Test description."""
-       expected = ...
-       result = ...
-       assert result == expected
-   ```
+# Third-party packages
+import numpy as np
+import pandas as pd
 
-2. Run tests:
-   ```bash
-   pytest tests/
-   ```
-
-3. Check coverage:
-   ```bash
-   pytest --cov=src tests/
-   ```
-
-### 4. Documentation
-- Update docstrings for all new functions/classes
-- Update README.md if adding new features
-- Document any changes to data structures or APIs
+# Local modules
+from src.data import utils
+```
 
 ## Making Changes
 
-### 1. Creating a New Feature
-1. Create feature branch:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. Implement feature with tests
-
+### Adding Features
+1. Create feature branch
+2. Implement with tests
 3. Update documentation
+4. Run full test suite
+5. Submit pull request
 
-4. Run test suite:
-   ```bash
-   pytest tests/
-   black src/ tests/
-   flake8 src/ tests/
-   ```
-
-### 2. Fixing Bugs
-1. Create bug fix branch:
-   ```bash
-   git checkout -b fix/bug-description
-   ```
-
-2. Add test case that reproduces bug
+### Fixing Bugs
+1. Create bug fix branch
+2. Add reproducing test
 3. Fix bug
-4. Verify all tests pass
+4. Verify tests
+5. Submit pull request
 
-### 3. Improving Documentation
-1. Create documentation branch:
-   ```bash
-   git checkout -b docs/description
-   ```
-
-2. Make documentation changes
-3. Build and verify documentation
+### Modifying the Model
+1. Update notebooks
+2. Document changes
+3. Test solver behavior
+4. Update parameters
+5. Validate results
 
 ## Pull Request Process
-1. Update relevant documentation
-2. Run full test suite
-3. Push changes to your fork
-4. Create PR against `develop` branch
-5. Await code review
+1. Update documentation
+2. Run all tests
+3. Format code
+4. Create detailed PR description
+5. Await review
 
 ## Data Management
-- Store raw data in `data/raw/`
-- Process data in `data/processed/`
-- Use provided utility functions in `src.data.utils`
-- Document any new data sources or formats
 
-## Common Development Tasks
-1. Adding a new data source:
-   - Add API client in `src/data/api_client.py`
-   - Add validation in `src/data/utils.py`
-   - Create tests in `tests/test_api_client.py`
-
-2. Modifying optimization model:
-   - Update model formulation in notebooks
-   - Add new constraints/objectives
-   - Document changes in notebook markdown
-
-3. Adding visualizations:
-   - Add new visualization functions to `src/visualization/map_viz.py`
-   - Follow existing style for consistency
-   - Include examples in notebooks
-
-## Project Structure Guidelines
+### Data Structure
 ```plaintext
-src/
-├── data/           # Data processing modules
-├── models/         # Optimization models
-└── visualization/  # Visualization utilities
-
-notebooks/          # Analysis notebooks
-tests/              # Test modules
+data/
+├── raw/               # Original data files
+│   ├── boundaries/    # Geographic boundaries
+│   ├── charging_stations/
+│   ├── ev_fsa/        # EV ownership data
+│   ├── population/    # Census data
+│   └── potential_locations/
+└── processed/         # Processed datasets
+    ├── demand_points/
+    ├── ev_fsa_analyzed/
+    ├── integrated_analyzed_data/
+    └── optimization_inputs/
 ```
 
+### Data Guidelines
+1. Raw data is immutable
+2. Document all processing steps
+3. Use provided utility functions
+4. Include data validation
+5. Maintain data versions
+
+## Project Organization
+
+### Directory Structure
+```plaintext
+kw-ev-charging-optimization/
+├── data/           # Data storage
+├── notebooks/      # Analysis notebooks
+├── src/            # Source code
+│   ├── data/       # Data processing
+│   ├── model/      # Optimization model
+│   └── visualization/
+├── tests/          # Test modules
+└── configs/        # Configuration files
+```
+
+### Key Components
+1. Data Manager (`src/data/data_manager.py`)
+2. Network Optimizer (`src/model/network_optimizer.py`)
+3. Analysis Notebooks (`notebooks/`)
+4. Visualization Tools (`src/visualization/`)
+
 ## Contact
-- Create an issue for bugs or feature requests
-- Contact maintainers for other questions
+- Submit issues for bugs
+- Start discussions for features
+- Tag maintainers for review

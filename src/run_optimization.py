@@ -111,7 +111,7 @@ def run_optimization(scenario: Optional[str] = None, output_dir: str = None):
         print(f"✓ Solution saved to {solution_file}")
 
         solution_summary = get_solution_summary(solution, config, scenario)
-        solution_summary_file = save_results(solution_summary, 'solution_summary', 'txt', output_dir)
+        solution_summary_file = save_results(solution_summary, 'solution', 'txt', output_dir)
         print(f"✓ Solution summary saved to {solution_summary_file}")
         print(divider)
 
@@ -132,17 +132,17 @@ def run_optimization(scenario: Optional[str] = None, output_dir: str = None):
         # Save visualizations
         print("\n💾 Saving Visualizations...")
 
-        fig_file = save_results(fig, 'solution_plots', 'png', output_dir)
+        fig_file = save_results(fig, 'solution', 'png', output_dir)
         print(f"✓ Optimization results plots saved to {fig_file}")
         
-        map_file = save_results(m, 'coverage_map', 'map', output_dir)
+        map_file = save_results(m, 'solution_map', 'map', output_dir)
         print(f"✓ Coverage map saved to {map_file}")
 
         print(divider)
         
         # Perform sensitivity analysis if enabled
         if config.get('run_sensitivity', True):
-            print("\n📊 Running Sensitivity Analysis...")
+            print("📊 Running Sensitivity Analysis...")
             
             sensitivity_analysis = optimizer.perform_sensitivity_analysis()
             print("✓ Sensitivity analysis complete!")
@@ -155,13 +155,13 @@ def run_optimization(scenario: Optional[str] = None, output_dir: str = None):
 
             print("\n💾 Saving Sensitivity Analysis Results...")
             
-            sensitivity_results_file = save_results(sensitivity_analysis, 'sensitivity', 'json', output_dir)
+            sensitivity_results_file = save_results(sensitivity_analysis, 'sensitivity_analysis', 'json', output_dir)
             print(f"✓ Sensitivity analysis results saved to {sensitivity_results_file}")
 
-            sensitivity_plot_file = save_results(sensitivity_analysis_plot, 'sensitivity_plot', 'png', output_dir)
+            sensitivity_plot_file = save_results(sensitivity_analysis_plot, 'sensitivity_analysis', 'png', output_dir)
             print(f"✓ Sensitivity analysis plots saved to {sensitivity_plot_file}")
 
-            sensitivity_results_summary_file = save_results(sensitivity_results_summary, 'sensitivity_summary', 'txt', output_dir)
+            sensitivity_results_summary_file = save_results(sensitivity_results_summary, 'sensitivity_analysis', 'txt', output_dir)
             print(f"✓ Sensitivity analysis results summary saved to {sensitivity_results_summary_file}")
 
         print(divider)
@@ -176,7 +176,7 @@ def run_optimization(scenario: Optional[str] = None, output_dir: str = None):
 
         print("\n💾 Saving Implementation Plan...")
 
-        implementation_plan_file = save_results(implementation_plan, 'implementation_plan_details', 'json', output_dir)
+        implementation_plan_file = save_results(implementation_plan, 'implementation_plan', 'json', output_dir)
         print(f"✓ Implementation Plan saved to {implementation_plan_file}")
 
         implementation_plan_summary_file = save_results(implementation_plan_summary, 'implementation_plan', 'txt', output_dir)
