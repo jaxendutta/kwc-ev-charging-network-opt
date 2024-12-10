@@ -33,4 +33,4 @@ results/
 *.sol
 
 # Package
-kw_ev_opt.egg-info/
+kwc_ev_opt.egg-info/

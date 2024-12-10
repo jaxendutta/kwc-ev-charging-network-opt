@@ -46,15 +46,7 @@ A comprehensive mixed-integer linear programming (MILP) optimization model for s
     - [4.1. Environment Setup](#41-environment-setup)
       - [4.1.1 Prerequisites](#411-prerequisites)
       - [4.1.2. Core Dependencies](#412-core-dependencies)
-- [Core Data Processing](#core-data-processing)
-- [Geospatial Analysis](#geospatial-analysis)
-- [Optimization](#optimization)
-- [Visualization](#visualization)
-- [API \& Network](#api--network)
-- [Progress \& Formatting](#progress--formatting)
     - [4.2. Installation](#42-installation)
-      - [4.2.1. Base Setup](#421-base-setup)
-      - [4.2.2. API Configuration](#422-api-configuration)
     - [4.3. Data Pipeline Execution](#43-data-pipeline-execution)
       - [4.3.1. Data Collection](#431-data-collection)
       - [4.3.2. Analysis Pipeline](#432-analysis-pipeline)
@@ -101,6 +93,8 @@ A comprehensive mixed-integer linear programming (MILP) optimization model for s
       - [5. Service Area Constraints](#5-service-area-constraints)
       - [6. Non-Negativity and Integrality](#6-non-negativity-and-integrality)
     - [9.5. Objective Function](#95-objective-function)
+      - [9.5.1. Multi-Objective Function](#951-multi-objective-function)
+      - [9.5.2. Weighted Function](#952-weighted-function)
 
 ## 1. Project Overview
 
@@ -563,86 +557,75 @@ graph LR
 
 #### 4.1.2. Core Dependencies
 
-# Core Data Processing
-- numpy
-- pandas
-- scipy
+1. **Core Data Processing**
+   - numpy
+   - pandas
+   - scipy
 
-# Geospatial Analysis
-- geopandas
-- pyproj
-- shapely
-- osmnx
-- haversine
+1. **Geospatial Analysis**
+   - geopandas
+   - pyproj
+   - shapely
+   - osmnx
+   - haversine
 
-# Optimization
-- gurobipy
+1. **Optimization**
+   - gurobipy
 
-# Visualization
-- matplotlib
-- folium
-- branca
+1. **Visualization**
+   - matplotlib
+   - folium
+   - branca
 
-# API & Network
-- requests
-- ratelimit
-- python-dotenv
+1. **API & Network**
+   - requests
+   - ratelimit
+   - python-dotenv
 
-# Progress & Formatting
-- tqdm
-- tabulate
+1. **Progress & Formatting**
+   - tqdm
+   - tabulate
 
 ### 4.2. Installation
 
-#### 4.2.1. Base Setup
-
-1. Clone repository
+1. **Clone repository**
     ```bash
     git clone https://github.com/username/kw-ev-charging-optimization.git
     cd kw-ev-charging-optimization
     ```
 
-2. Create virtual environment
-    ```
-    python -m venv venv
-    source venv/bin/activate  # Linux/MacOS
-    # or
-    venv\Scripts\activate     # Windows
-    ```
-
-3. Install Project Package
-    ```bash
-    # Install in editable mode with development dependencies
-    pip install -e .
-    ```
-
-4. Install dependencies
-    ```
-    pip install -r requirements.txt
-    ```
-
-#### 4.2.2. API Configuration
-1. Configure API Access
-   - Obtain OpenChargeMap API key [here](https://openchargemap.org/site/developerinfo)
-   - Acquire Ontario Data Portal access
-   - Set up your API keys as environment variables in `.env` file in the project root with following content:
+1. **Configure API Access**
+   - Obtain an OpenChargeMap API key [here](https://openchargemap.org/site/developerinfo)
+   - Acquire Ontario Data Portal access (if necessary)
+   - Create a file named `.env` in your project root
+   - Set up your API keys as environment variables by placing the following in the `.env` file:
      ```
      OCMAP_API_KEY=<your_api_key_here>
+     # Any other necessary keys in format: <KEY_NAME>=<key>
      ```
 
-2. Configure environment:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
-   ```
-
-3. Verify Setup:
+1. **Run setup verification**
     ```bash
-    python src/verify_setup.py  
-    # Verify final environment setup
+    python src/verify_setup.py
     ```
 
+    The `verify_setup.py` script automates the setup process by:
+    - Checking and enforcing project-specific virtual environment setup at `PROJECT_ROOT/venv`
+    - Verifying Python version compatibility (requires Python 3.12.7+)
+    - Installing the project package in editable mode (`pip install -e .`)
+    - Installing all dependencies from `requirements.txt` with proper categorization
+    - Verifying Gurobi license status
+    - Checking API key configurations
+    - Testing API connectivity (OpenStreetMap, OpenChargeMap, ROW OpenData)
+    - Validating source code file structure
+    - Creating all necessary project directories
+
+    The script provides interactive prompts and clear instructions if any setup steps fail or require user action. Follow the on-screen instructions to complete any missing setup requirements.
+
 ### 4.3. Data Pipeline Execution
+
+> [!TIP]
+> If you want to run the optimization directly, you can skip to section [4.4](#44-model-configuration). The following content is just for visualizing the optimization steps and is not necessary to run the optimization script.
 
 #### 4.3.1. Data Collection
 ```bash
@@ -714,7 +697,11 @@ results/
 ```
 
 #### 4.5.3. Notebook Interface
-The optimization can also be executed using a Jupyter Notebook. This method emphasizes immediate visualization of results and does not include predefined cells for saving outputs. However, you can add cells to save your results as needed.
+The optimization can also be executed using a Jupyter Notebook. This method emphasizes immediate visualization of results.
+
+> [!NOTE] 
+> This notebook does not include predefined cells or code for saving outputs. However, you can add cells to save your results as needed. Only the optimization script in section [4.5.1.](#451-command-line-interface) saves the results as outlined in section [4.5.2.](#452-output-structure)
+
 ```bash
 jupyter notebook notebooks/05_optimization_model.ipynb
 ```
@@ -918,12 +905,12 @@ $$
 & u_k \in \{0,1\} && \forall k \in K && \text{1 if L2 station k upgraded to L3} \\
 \\ \\
 & \text{Port Allocation:} \\
-& p2_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L2 ports at i} \\
-& p3_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L3 ports at i} \\
+& p^2_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L2 ports at i} \\
+& p^3_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L3 ports at i} \\
 \\ \\
 & \text{Coverage Variables:} \\
-& c2_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L2} \\
-& c3_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L3}
+& c^2_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L2} \\
+& c^3_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L3}
 \end{aligned}
 $$
 
@@ -968,12 +955,12 @@ $$
 $$
 \begin{aligned}
 & \text{L2 Coverage Requirements:} \\
-& c2_j \leq \sum_{i \in I_j^2} (y_i + z_i) + \sum_{k \in K_j^2} (1-u_k) && \forall j \in J \\
-& \sum_{j \in J} c2_j \cdot w_j \geq \alpha && \text{Minimum L2 coverage} \\
+& c^2_j \leq \sum_{i \in I_j^2} (y_i + z_i) + \sum_{k \in K_j^2} (1-u_k) && \forall j \in J \\
+& \sum_{j \in J} c^2_j \cdot w_j \geq \alpha && \text{Minimum L2 coverage} \\
 \\ \\
 & \text{L3 Coverage Requirements:} \\
-& c3_j \leq \sum_{i \in I_j^3} z_i + \sum_{k \in K_j^3} u_k && \forall j \in J \\
-& \sum_{j \in J} c3_j \cdot w_j \geq \beta && \text{Minimum L3 coverage}
+& c^3_j \leq \sum_{i \in I_j^3} z_i + \sum_{k \in K_j^3} u_k && \forall j \in J \\
+& \sum_{j \in J} c^3_j \cdot w_j \geq \beta && \text{Minimum L3 coverage}
 \end{aligned}
 $$
 
@@ -987,27 +974,34 @@ where:
 
 $$
 \begin{aligned}
+\text{cost} = 
+& \sum_{i \in I} (y_i \cdot C_{L2} + z_i \cdot C_{L3}) \\
+& + \sum_{i \in I} (p^2_i \cdot C_{P2} \\
+& + p^3_i \cdot C_{P3}) + \sum_{k \in K} u_k \cdot C_U \\ 
+& - \sum_{k \in K} u_k \cdot (C_{L2} \cdot \gamma + p^2_k \cdot C_{P2} \cdot \gamma)
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
 & \text{Total Cost Limitation:} \\
-& \sum_{i \in I} (y_i \cdot C_{L2} + z_i \cdot C_{L3}) + \\
-& \sum_{i \in I} (p2_i \cdot C_{P2} + p3_i \cdot C_{P3}) + \\
-& \sum_{k \in K} u_k \cdot C_U - \\
-& \sum_{k \in K} u_k \cdot (C_{L2} \cdot \gamma + p2_k \cdot C_{P2} \cdot \gamma) \leq B
+& \text{cost} \leq B
 \end{aligned}
 $$
 
 where:
 - $\gamma$ is the resale factor for existing equipment (0-1)
-- $p2_k$ is the number of existing L2 ports at station k
+- $p^2_k$ is the number of existing L2 ports at station k
 
 #### 3. Grid Capacity Constraints
 
 $$
 \begin{aligned}
 & \text{Power Limitations:} \\
-& P_2 \cdot p2_i + P_3 \cdot p3_i \leq G_i && \forall i \in I \\
+& P_2 \cdot p^2_i + P_3 \cdot p^3_i \leq G_i && \forall i \in I \\
 \\ \\
 & \text{Existing Station Power:} \\
-& P_2 \cdot p2_k \cdot (1-u_k) + P_3 \cdot p3_k \cdot u_k \leq G_k && \forall k \in K
+& P_2 \cdot p^2_k \cdot (1-u_k) + P_3 \cdot p^3_k \cdot u_k \leq G_k && \forall k \in K
 \end{aligned}
 $$
 
@@ -1019,12 +1013,12 @@ $$
 & y_i + z_i \leq 1 && \forall i \in I \\
 \\ \\
 & \text{Port Assignment Rules:} \\
-& p2_i \leq M \cdot (y_i + z_i) && \forall i \in I \\
-& p3_i \leq M \cdot (z_i + u_i) && \forall i \in I \\
+& p^2_i \leq M \cdot (y_i + z_i) && \forall i \in I \\
+& p^3_i \leq M \cdot (z_i + u_i) && \forall i \in I \\
 \\ \\
 & \text{Minimum Port Requirements:} \\
-& p2_i \geq y_i && \forall i \in I \\
-& p3_i \geq 2(z_i + u_i) && \forall i \in I
+& p^2_i \geq y_i && \forall i \in I \\
+& p^3_i \geq 2(z_i + u_i) && \forall i \in I
 \end{aligned}
 $$
 
@@ -1050,20 +1044,38 @@ where:
 
 $$
 \begin{aligned}
-& y_i, z_i, u_k, c2_j, c3_j \in \{0,1\} \\
-& p2_i, p3_i \in \mathbb{Z}^+ \\
+& y_i, z_i, u_k, c^2_j, c^3_j \in \{0,1\} \\
+& p^2_i, p^3_i \in \mathbb{Z}^+ \\
 & \forall i \in I, k \in K, j \in J
 \end{aligned}
 $$
 
 ### 9.5. Objective Function
 
+#### 9.5.1. Multi-Objective Function
+
+$$
+\begin{align*}
+    \left\{
+    \begin{array}{l}
+        \max \quad & \sum_{j \in J} c^3_j \cdot w_j \\ \\
+        \max \quad & \sum_{j \in J} c^2_j \cdot w_j \\ \\
+        \min \quad & \text{cost}
+    \end{array}
+    \right\} \tag{3-OBJ}
+\end{align*}
+$$
+
+#### 9.5.2. Weighted Function
+
 $$
 \begin{aligned}
-\text{Maximize: } & w_1 \sum_{j \in J} c3_j \cdot w_j + w_2 \sum_{j \in J} c2_j \cdot w_j - w_3 \cdot \text{Cost}
+\max \quad & \lambda_1 \sum_{j \in J} c^3_j \cdot w_j + \lambda_2 \sum_{j \in J} c^2_j \cdot w_j - \lambda_3 \cdot \text{cost} \tag{WT-OBJ}
 \end{aligned}
 $$
 
 where:
 - $w_j$ is the population weight at demand point j
-- $w_1, w_2, w_3$ are objective weights for L3 coverage, L2 coverage, and cost respectively
+- $\lambda_1, \lambda_2, \lambda_3$ are objective weights in the form of percentages for L3 coverage, L2 coverage, and cost respectively
+- $\lambda_1 + \lambda_2 + \lambda_3 = 100$
+- $\lambda_1, \lambda_2, \lambda_3 > 0$

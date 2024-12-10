@@ -64,19 +64,25 @@ DATA_PATHS = {
 }
 
 # Source code files
-SOURCE_CODE_FILES = [
-    NOTEBOOKS_DIR / '01_data_collection.ipynb',
-    NOTEBOOKS_DIR / '02_location_analysis.ipynb',
-    NOTEBOOKS_DIR / '03_enhancement_analysis.ipynb',
-    NOTEBOOKS_DIR / '04_data_preparation.ipynb',
-    NOTEBOOKS_DIR / '05_optimization_model.ipynb',
-    SRC_DATA_DIR / 'utils.py',
-    SRC_DATA_DIR / 'constants.py',
-    SRC_DATA_DIR / 'data_manager.py',
-    SRC_MODEL_DIR / 'network_optimizer.py',
-    SRC_VISUALIZATION_DIR / 'map_viz.py',
-    SRC_VISUALIZATION_DIR / 'optimization_viz.py'
-]
+SOURCE_CODE_FILES = {
+    'Jupyter Notebook': [
+        NOTEBOOKS_DIR / '01_data_collection.ipynb',
+        NOTEBOOKS_DIR / '02_location_analysis.ipynb',
+        NOTEBOOKS_DIR / '03_enhancement_analysis.ipynb',
+        NOTEBOOKS_DIR / '04_data_preparation.ipynb',
+        NOTEBOOKS_DIR / '05_optimization_model.ipynb',
+    ],
+    'Python Script': [
+        SRC_DATA_DIR / 'constants.py',
+        SRC_DATA_DIR / 'data_manager.py',
+        SRC_DATA_DIR / 'endpoints.py',
+        SRC_DATA_DIR / 'utils.py',
+        SRC_MODEL_DIR / 'network_optimizer.py',
+        SRC_MODEL_DIR / 'utils.py',
+        SRC_VISUALIZATION_DIR / 'map_viz.py',
+        SRC_VISUALIZATION_DIR / 'optimization_viz.py',
+    ]
+}
 
 # Area parameters
 KW_CENTER = [43.4516, -80.4925]  # Center of KW region
