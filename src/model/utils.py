@@ -1,8 +1,6 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple, Union
 import pandas as pd
-from tabulate import tabulate, PRESERVE_WHITESPACE
-# Set PRESERVE_WHITESPACE to True
-PRESERVE_WHITESPACE = True
+from tabulate import tabulate
 
 from src.data.utils import *
 
@@ -51,7 +49,7 @@ def dict_print(d: Dict[str, Any], indent: int = 0) -> List[str]:
 
 def format_newline(text: List[str]) -> str:
     """Format text with newlines for better readability."""
-    return'\n'.join(text)
+    return '\n'.join(text) + '\n'
 
 def save_results(data, data_type, file_type, output_dir: Path) -> Path:
     """Save program documentation in both JSON and human-readable formats."""
@@ -87,7 +85,21 @@ def save_results(data, data_type, file_type, output_dir: Path) -> Path:
     return output_file
 
 def get_program_doc_summary(doc: Dict[str, Any], display: Optional[bool] = False) -> str:
-    """Format optimization program documentation with compact, readable tables."""
+    """
+    Return comprehensive documentation of the optimization program.
+    
+    Documents:
+    - Data structure and parameters
+    - Port retention strategy
+    - Decision variables including port retention
+    - Constraints including minimum port requirements
+    - Multi-objective optimization approach
+    - Implementation considerations
+    
+    Returns:
+        Dict containing complete program documentation
+    """
+    
     doc_summary = []
     
     # Title
@@ -256,100 +268,218 @@ def get_program_doc_summary(doc: Dict[str, Any], display: Optional[bool] = False
     return doc_summary
 
 def get_solution_summary(solution: Dict[str, Any],
-                        config: Dict[str, Any],
                         scenario: Optional[str] = None,
-                        display: Optional[bool] = False) -> List[str]:
+                        display: Optional[bool] = False) -> str:
+    """
+    Generate comprehensive solution summary with detailed port analysis.
+    
+    Provides a complete overview of the optimization solution including:
+    - Coverage improvements for both L2 and L3
+    - Infrastructure changes with port retention details
+    - Financial analysis including retained port costs
+    - Implementation phasing
+    
+    Args:
+        solution: Complete optimization solution
+        scenario: Optional scenario name
+        display: Whether to print summary
+        
+    Returns:
+        str: Formatted solution summary
+    """
+    
     summary = []
 
-    # Results Summary
+    # Results Summary Header
     summary.append(make_header("EV Charging Network Enhancement Optimization Results".upper(), "="))
     summary.append("")
 
-    # Right-align values with consistent width
+    # Basic Info - right-aligned values with consistent width
     width_label = 30
-    width_value = 30
 
-    summary.append(f"{'Date:':<{width_label}}{datetime.now().strftime('%Y-%m-%d %H:%M:%S'):>{width_value}}")
-    summary.append(f"{'Scenario:':<{width_label}}{(scenario or 'Base'):>{width_value}}")
-    summary.append(f"{'Status:':<{width_label}}{solution['status']:>{width_value}}")
-    summary.append(f"{'Objective Value:':<{width_label}}{solution['objective_value']:>{width_value}.2f}")
+    summary.append(f"{'Date:':<{width_label}}{datetime.now().strftime('%Y-%m-%d %H:%M:%S'):>{width_label}}".center(OUTPUT_WIDTH))
+    summary.append(f"{'Scenario:':<{width_label}}{(scenario or 'Base'):>{width_label}}".center(OUTPUT_WIDTH))
+    summary.append(f"{'Status:':<{width_label}}{solution['status']:>{width_label}}".center(OUTPUT_WIDTH))
+    summary.append(f"{'Objective Value:':<{width_label}}{solution['objective_value']:>{width_label}.2f}".center(OUTPUT_WIDTH))
 
+    # Coverage Summary
     if 'coverage' in solution:
         summary.append(make_header("Coverage Updates".upper(), "-"))
 
-        initial_l3_coverage = solution['coverage']['initial']['l3_coverage']
-        final_l3_coverage = solution['coverage']['final']['l3_coverage']
-        initial_l2_coverage = solution['coverage']['initial']['l2_coverage']
-        final_l2_coverage = solution['coverage']['final']['l2_coverage']
+        # Create coverage comparison table
+        headers = ["Coverage Type", "Initial", "Final", "Change"]
+        coverage_data = []
+        
+        # L2 Coverage
+        initial_l2 = solution['coverage']['initial']['l2_coverage'] * 100
+        final_l2 = solution['coverage']['final']['l2_coverage'] * 100
+        change_l2 = final_l2 - initial_l2
+        
+        coverage_data.append([
+            "Level 2",
+            f"{initial_l2:.2f}%",
+            f"{final_l2:.2f}%",
+            f"{change_l2:+.2f}%"
+        ])
 
-        headers = ["Station Level", "Radius", "Initial", "Achieved"]
-        coverage_data = [
-            ["Level 3", f"{int(config['coverage']['l3_radius'] * 1000)}m", color_text(f"{(initial_l3_coverage * 100):.2f}%", 33), color_text(f"{(final_l3_coverage * 100):.2f}%", 32)],
-            ["Level 2", f"{int(config['coverage']['l2_radius'] * 1000)}m", color_text(f"{(initial_l2_coverage * 100):.2f}%", 33), color_text(f"{(final_l2_coverage * 100):.2f}%", 32)]
-        ]
+        # L3 Coverage
+        initial_l3 = solution['coverage']['initial']['l3_coverage'] * 100
+        final_l3 = solution['coverage']['final']['l3_coverage'] * 100
+        change_l3 = final_l3 - initial_l3
+        
+        coverage_data.append([
+            "Level 3",
+            f"{initial_l3:.2f}%",
+            f"{final_l3:.2f}%",
+            f"{change_l3:+.2f}%"
+        ])
 
         summary.append(tabulate(
             coverage_data,
             headers=headers,
             tablefmt="grid",
-            stralign="center"
+            colalign=("left", "right", "right", "right")
         ))
 
+    # Infrastructure Changes
     summary.append(make_header("Infrastructure Changes".upper(), "-"))
+    
+    # Calculations and Metrics
+    remaining_l2_stations = [s for s in solution['stations']['existing'] if s['charging']['charger_type'] == 'Level 2']
+    new_l2_stations = [s for s in solution['stations']['new'] if s['charging']['status'] == 'New L2']
+    new_l3_stations = [s for s in solution['stations']['new'] if s['charging']['charger_type'] == 'Level 3']
+    l2_to_l3_stations = solution['stations']['upgrades']
 
-    summary.append("\n1. New Installations\n")
+    initial_l3_stations = [s for s in solution['stations']['existing'] if s['charging']['charger_type'] == 'Level 3']
+    initial_l2_stations = remaining_l2_stations + l2_to_l3_stations
 
-    headers = ["Infrastructure Type", "Count", "Cost ($)"]
-    new_infrastructure_data = [
-        ["L2 Stations", str(solution['costs']['new_infrastructure']['l2_stations']['count']), 
-        f"{solution['costs']['new_infrastructure']['l2_stations']['cost']:,.2f}"],
-        ["L2 Ports", str(solution['costs']['new_infrastructure']['l2_ports']['count']), 
-        f"{solution['costs']['new_infrastructure']['l2_ports']['cost']:,.2f}"],
-        ["New L3 Stations", str(solution['costs']['new_infrastructure']['l3_stations_new']['count']), 
-        f"{solution['costs']['new_infrastructure']['l3_stations_new']['cost']:,.2f}"],
-        ["L2 -> L3 Stations", str(solution['costs']['new_infrastructure']['l3_stations_upgrade']['count']), 
-        f"{solution['costs']['new_infrastructure']['l3_stations_upgrade']['cost']:,.2f}"],
-        ["L3 Ports", str(solution['costs']['new_infrastructure']['l3_ports']['count']), 
-        f"{solution['costs']['new_infrastructure']['l3_ports']['cost']:,.2f}"]
+    final_l2_stations = remaining_l2_stations + new_l2_stations
+    final_l3_stations = initial_l3_stations + new_l3_stations + l2_to_l3_stations
+
+    initial_l2_ports = sum(s['charging']['ports']['initial']['level_2'] for s in initial_l2_stations)
+    initial_l3_ports = sum(s['charging']['ports']['initial']['level_3'] for s in initial_l3_stations)
+
+    l2_ports_new = sum(s['charging']['ports']['final']['level_2'] for s in new_l2_stations)
+    l2_ports_sold = sum((s['charging']['ports']['initial']['level_2'] - s['charging']['ports']['final']['level_2'])
+                         for s in solution['stations']['upgrades'])
+    
+    l3_ports_new = sum(s['charging']['ports']['final']['level_3'] for s in solution['stations']['new'])
+    l3_ports_upgrade = sum(s['charging']['ports']['final']['level_3'] for s in solution['stations']['upgrades'])
+
+    final_l2_ports = initial_l2_ports + l2_ports_new - l2_ports_sold
+    final_l3_ports = initial_l3_ports + l3_ports_new + l3_ports_upgrade
+
+    # Create infrastructure summary table
+    headers = ["Category", "Initial", "Final", "Change"]
+    infrastructure_data = [
+        [   
+            
+            'L2 Stations',                          # Name
+            len([s for s in initial_l2_stations]),  # Initial
+            len([s for s in final_l2_stations]),    # Final
+            f'{(len([s for s in final_l2_stations]) - len([s for s in initial_l2_stations])):+.0f}' # Change
+        ],
+        [   
+            'L3 Stations',                          # Name
+            len([s for s in initial_l3_stations]),  # Initial
+            len([s for s in final_l3_stations]),    # Final
+            f'{(len([s for s in final_l3_stations]) - len([s for s in initial_l3_stations])):+.0f}' # Change
+        ],
+        [   
+            "L2 Ports",             # Name
+            initial_l2_ports,       # Initial 
+            final_l2_ports,         # Final
+            f'{(final_l2_ports - initial_l2_ports):+.0f}'   # Change
+        ],
+        [
+            "L3 Ports",             # Name
+            initial_l3_ports,       # Initial 
+            final_l3_ports,         # Final
+            f'{(final_l3_ports - initial_l3_ports):+.0f}'   # Change
+        ]
     ]
 
     summary.append(tabulate(
-        new_infrastructure_data, 
-        headers=headers, 
-        tablefmt="grid", 
-        colalign=("left", "center", "decimal")))
-
-    summary.append("\n2. Resale Revenue\n")
-
-    headers = ["Infrastructure Type", "Count", "Revenue ($)"]        
-    resale_revenue_data = [
-        ["L2 Stations", str(solution['costs']['resale_revenue']['l2_stations']['count']), 
-        f"{solution['costs']['resale_revenue']['l2_stations']['revenue']:,.2f}"],
-        ["L2 Ports", str(solution['costs']['resale_revenue']['l2_ports']['count']), 
-        f"{solution['costs']['resale_revenue']['l2_ports']['revenue']:,.2f}"]
-    ]
-
-    summary.append(tabulate(
-        resale_revenue_data,
+        infrastructure_data,
         headers=headers,
         tablefmt="grid",
-        colalign=("left", "center", "decimal"),
+        colalign=("left", "center", "center", "center")
     ))
 
-    summary.append(make_header("Total Financial Summary".upper(), "-"))
+    # Financial Summary
+    summary.append(make_header("Financial Summary".upper(), "-"))
+    
+    costs = solution['costs']
+    
+    # New Infrastructure Costs
+    summary.append("\n1. New Infrastructure Costs")
+    infra_headers = ["Type", "Stations", "Chargers", "Cost ($)"]
+    infra_data = [
+        [
+            "Level 2 (New)",                                                # Type
+            costs['new_infrastructure']['l2_stations']['count'],            # Stations
+            l2_ports_new,                                                   # Chargers
+            f"{costs['new_infrastructure']['l2_stations']['cost']:,.2f}"    # Cost
+        ],
+        [
+            "Level 3 (New)",                                                    # Type
+            costs['new_infrastructure']['l3_stations_new']['count'],            # Stations
+            l3_ports_new,                                                        # Chargers
+            f"{costs['new_infrastructure']['l3_stations_new']['cost']:,.2f}"    # Cost
+        ],
+        [
+            "Level 3 (Upgrades)",                                                   # Type
+            costs['new_infrastructure']['l3_stations_upgrade']['count'],            # Stations
+            l3_ports_upgrade,                                                       # Chargers
+            f"{costs['new_infrastructure']['l3_stations_upgrade']['cost']:,.2f}"    # Cost
+        ]
+    ]
+    
+    summary.append(tabulate(
+        infra_data,
+        headers=infra_headers,
+        tablefmt="grid",
+        colalign=("left", "center", "center", "decimal")
+    ))
 
+    # Resale Revenue
+    summary.append("\n2. Resale Revenue")
+    resale_headers = ["Type", "Count", "Revenue ($)"]
+    resale_data = [
+        [
+            "L2 Stations",                                              # Type
+            costs['resale_revenue']['l2_stations']['count'],            # Count
+            f"{costs['resale_revenue']['l2_stations']['revenue']:,.2f}" # Revenue
+        ],
+        [
+            "L2 Ports",                                                 # Type
+            costs['resale_revenue']['l2_ports']['count'],               # Count
+            f"{costs['resale_revenue']['l2_ports']['revenue']:,.2f}"    # Revenue
+        ]
+    ]
+    
+    summary.append(tabulate(
+        resale_data,
+        headers=resale_headers,
+        tablefmt="grid",
+        colalign=("left", "center", "decimal")
+    ))
+
+    # Total Financial Impact
+    summary.append(make_header("Total Financial Impact", "-"))
+    
     # Format financial summary with consistent spacing
-    purchase = solution['costs']['summary']['total_purchase']
-    revenue = solution['costs']['summary']['total_revenue']
-    net_cost = solution['costs']['summary']['net_cost']
-
+    purchase = costs['summary']['total_purchase']
+    revenue = costs['summary']['total_revenue']
+    net_cost = costs['summary']['net_cost']
+    
     # Get maximum value width for clean alignment
     max_value = max(purchase, revenue, net_cost)
     value_width = len(f"{max_value:,.2f}")
-
-    summary.append(f"{'Total Purchase:':<20}  \033[91m$ {purchase:>{value_width},.2f}\033[0m")   # Red
-    summary.append(f"{'Total Revenue:':<20}  \033[92m$ {revenue:>{value_width},.2f}\033[0m")     # Green
-    summary.append(f"{'Net Cost:':<20}  \033[93m$ {net_cost:>{value_width},.2f}\033[0m")         # Yellow
+    
+    summary.append(f"{'Total Purchase:':<{width_label}}  $ {purchase:>{value_width},.2f}".center(OUTPUT_WIDTH))
+    summary.append(f"{'Total Revenue:':<{width_label}}  $ {revenue:>{value_width},.2f}".center(OUTPUT_WIDTH))
+    summary.append(f"{'Net Cost:':<{width_label}}  $ {net_cost:>{value_width},.2f}".center(OUTPUT_WIDTH))
 
     summary = format_newline(summary)
 
@@ -358,135 +488,223 @@ def get_solution_summary(solution: Dict[str, Any],
     
     return summary
 
-def get_sensitivity_results_summary(sensitivity_results: Dict[str, Any], display: Optional[bool] = False) -> None:
-    """Format sensitivity analysis results with insights and detailed breakdown."""
-    sensitivity_summary = []
-    
-    # Print header
-    sensitivity_summary.append(make_header("Sensitivity Analysis".upper(), "="))
+def get_sensitivity_results_summary(sensitivity_results: Dict[str, Any], display: bool = False) -> str:
+    """Generate sensitivity analysis summary with improved insights."""
+    summary = [make_header("SENSITIVITY ANALYSIS SUMMARY", "=")]
 
-    # Print insights
-    sensitivity_summary.append("\nKey Insights:")
-    sensitivity_summary.append("-" * 50)
-    for i, insight in enumerate(sensitivity_results['insights'], 1):
-        sensitivity_summary.append(f"{i}. {insight}")
-
-    # Print constraint analysis
-    sensitivity_summary.append(make_header("Constraint Analysis", "-"))
-    headers = ["Constraint", "Required", "Achieved", "Utilization"]
-    constraint_data = []
-
-    for name, values in sensitivity_results['constraints'].items():
-        rhs = values['rhs']
-        achieved = rhs - values['slack']
-        utilization = values['utilization']
-        
-        if 'Budget' in name:
-            required = f"${rhs:,.2f}"
-            achieved = f"${achieved:,.2f}"
-        else:
-            required = f"{rhs*100:.1f}%"
-            achieved = f"{(rhs - values['slack'])*100:.1f}%"
-        
-        constraint_data.append([
+    # Constraint Analysis Summary
+    summary.append(make_header("Constraint Analysis", "-"))
+    constraint_headers = ["Constraint", "Utilization", "Slack", "RHS", "Status"]
+    constraint_data = [
+        [
             name,
-            required,
-            achieved,
-            f"{utilization:.1f}%"
-        ])
+            f"{values['utilization']:.6f}%",
+            f"{values['slack']:+,.6f}",
+            f"{values['rhs']:,.2f}",
+            values['status']
+        ]
+        for name, values in sensitivity_results['constraints'].items()
+    ]
+    summary.append(tabulate(constraint_data, 
+                            headers=constraint_headers, 
+                            tablefmt="grid",
+                            colalign=("left", "decimal", "decimal", "decimal", "center")))
 
-    sensitivity_summary.append(tabulate(constraint_data, headers=headers, tablefmt="grid"))
+    # Variable Analysis Summary
+    summary.append(make_header("Variable Analysis", "-"))
+    variable_headers = ["Variable", "Value", "Type"]
     
-    sensitivity_summary = format_newline(sensitivity_summary)
+    # Filter significant variables
+    significant_vars = [
+        var for var in sensitivity_results['variables']
+        if var['value'] > 0.5  # For binary variables
+    ]
+    
+    variabbles_shown = 5
+    variable_data = [
+        [
+            var['variable'],
+            f"{var['value']:.2f}",
+            var['type']
+        ]
+        for var in significant_vars[:variabbles_shown]  # Show top most significant variables
+    ]
+
+    if variable_data:
+        summary.append(tabulate(variable_data, headers=variable_headers, tablefmt="grid"))
+        if len(significant_vars) > variabbles_shown:
+            summary.append(f"\n(Showing top {variabbles_shown} of {len(significant_vars)} significant variables)")
+    else:
+        summary.append("No significant variables to display.")
+
+    # Insights Section
+    if sensitivity_results['insights']:
+        summary.append(make_header("Key Insights", "-"))
+        for idx, insight in enumerate(sensitivity_results['insights'], 1):
+            summary.append(f"{idx}. {insight}")
+
+    summary = format_newline(summary)
 
     if display:
-        print(sensitivity_summary)
+        print(summary)
     
-    return sensitivity_summary
+    return summary
 
-def get_implementation_plan(solution: dict, display: Optional[bool] = False) -> List:
-    """Display implementation plan with detailed breakdown."""
+def get_implementation_plan(solution: Dict[str, Any], display: Optional[bool] = False) -> Tuple[str, List[Dict]]:
+    """
+    Generate detailed implementation plan with port transition strategy.
+    
+    Creates phased implementation plan considering:
+    - L2 port retention during upgrades
+    - New station deployment
+    - Grid capacity modifications
+    - Service continuity maintenance
+    - Cost-effective transition timing
+    
+    Args:
+        solution: Optimization solution
+        display: Whether to display plan
+        
+    Returns:
+        Tuple of implementation summary and phase details
+    """
+    try:
+        # Initialize phase data
+        phases = []
+        
+        # Phase 1: L2 to L3 Upgrades
+        phase1_stations = solution['stations']['upgrades']
+        phase1 = get_phase_data(1, phase1_stations)
+        phases.append(phase1)
 
-    # Initialize phase stats
-    phases = {
-        1: {'actions': 0, 'stations': 0, 'ports': 0, 'cost': 0.0},
-        2: {'actions': 0, 'stations': 0, 'ports': 0, 'cost': 0.0},
-        3: {'actions': 0, 'stations': 0, 'ports': 0, 'cost': 0.0}
-    }
-    
-    # Phase 1: L2 to L3 Upgrades
-    for station in solution['stations']['upgrades']:
-        phase = phases[1]
-        phase['actions'] += 1 + station['charging']['new_ports']
-        phase['stations'] += 1
-        phase['ports'] += station['charging']['new_ports']
-        phase['cost'] += station['implementation']['estimated_upgrade_cost']
-    
-    for station in solution['stations']['new']:
         # Phase 2: New L3 Stations
-        if station['charging']['charger_type'] == 'Level 3':
-            phase = phases[2]
-            phase['actions'] += 1 + station['charging']['num_ports']
-            phase['stations'] += 1
-            phase['ports'] += station['charging']['num_ports']
-            phase['cost'] += station['implementation']['estimated_installation_cost']
+        phase2_stations = [s for s in solution['stations']['new'] 
+                         if s['charging']['charger_type'] == 'Level 3']
+        phase2 = get_phase_data(2, phase2_stations)
+        phases.append(phase2)
+
+        # Phase 3: New L2 Network
+        phase3_stations = [s for s in solution['stations']['new'] 
+                         if s['charging']['charger_type'] == 'Level 2']
+        phase3 = get_phase_data(3, phase3_stations)
+        phases.append(phase3)
+
+        # Format numbers for display
+        for phase in phases:
+            phase['Stations Modified'] = f"{phase['Stations Modified']:,}"
+            phase['Ports Added'] = f"{phase['Ports Added']:,}"
+            phase['Ports Removed'] = f"{phase['Ports Removed']:,}"
+            phase['Total Actions'] = f"{phase['Total Actions']:,}"
+            phase['Estimated Cost'] = f"{phase['Estimated Cost']:,.2f}"
+
+        # Create implementation summary text
+        summary = []
+        summary.append(make_header("Implementation Plan".upper(), "="))
+        summary.append(make_header("Phase Details", "-"))
+        
+        # Phase descriptions
+        phase_details = {
+            1: ("L2 to L3 Upgrades", [
+                "Convert existing L2 stations to L3",
+                "Install new L3 ports",
+                "Upgrade electrical infrastructure"
+            ]),
+            2: ("New L3 Stations", [
+                "Install new L3 stations",
+                "Add L3 charging ports",
+                "Implement grid connections"
+            ]),
+            3: ("New L2 Network", [
+                "Install new L2 stations",
+                "Add L2 charging ports",
+                "Complete network coverage"
+            ])
+        }
+
+        # Add phase descriptions
+        for phase_num, (name, tasks) in phase_details.items():
+            summary.append(f"\nPhase {phase_num}: {name}")
+            for task in tasks:
+                summary.append(f"   • {task}")
+
+        # Add phase details table
+        phase_df = pd.DataFrame(phases)
+        summary.append(make_header("Detailed Phase Analysis", "-"))
+        
+        # Modify headers to include new line characters
+        headers = {
+            'Phase': 'Phase',
+            'Stations Modified': 'Stations\nModified',
+            'Ports Added': 'Ports\nAdded',
+            'Ports Removed': 'Ports\nRemoved',
+            'Total Actions': 'Total\nActions',
+            'Estimated Cost': 'Estimated\nCost ($)'
+        }
+        
+        summary.append(tabulate(
+            phase_df.rename(columns=headers),
+            headers='keys',
+            tablefmt='grid',
+            showindex=False,
+            colalign=('center', 'center', 'center', 'center', 'center', 'decimal')
+        ))
+
+        # Join summary into single string
+        summary = format_newline(summary)
+
+        if display:
+            print(summary)
+
+        return summary, phases
+        
+    except Exception as e:
+        raise RuntimeError(f"Error creating implementation plan: {str(e)}")
+
+def get_phase_data(phase: int, stations: Dict[str, Any]) -> dict:
+    """
+    Get implementation plan details for a given phase.
+
+    Computes:
+    - Total stations modified
+    - Ports added and removed
+    - Total actions required
+    - Estimated cost of implementation
+
+    Args:
+        phase: Phase number
+        stations: List of stations for the phase
+
+    Returns:
+        Dict containing phase details
+    """
+    station_changes = len(stations)
+    total_changes = 0
+    ports_added = 0
+    ports_removed = 0
+    estimated_cost = 0
+
+    for station in stations:
+        """Get the changes in ports for a given station."""
+        initial_l2_ports = station['charging']['ports']['initial']['level_2']
+        initial_l3_ports = station['charging']['ports']['initial']['level_3']
+        final_l2_ports = station['charging']['ports']['final']['level_2']
+        final_l3_ports = station['charging']['ports']['final']['level_3']
+        
+        l2_change = abs(final_l2_ports - initial_l2_ports)
+        l3_change = abs(final_l3_ports - initial_l3_ports)
+
+        total_changes += l2_change + l3_change
+
+        ports_added += max(final_l2_ports - initial_l2_ports, 0) + max(final_l3_ports - initial_l3_ports, 0)
+        ports_removed += max(initial_l2_ports - final_l2_ports, 0) + max(initial_l3_ports - final_l3_ports, 0)
+
+        estimated_cost += station['implementation']['estimated_installation_cost']
     
-        # Phase 3: New L2 Stations
-        if station['charging']['charger_type'] == 'Level 2':
-            phase = phases[3]
-            phase['actions'] += 1 + station['charging']['num_ports']
-            phase['stations'] += 1
-            phase['ports'] += station['charging']['num_ports']
-            phase['cost'] += station['implementation']['estimated_installation_cost']
-
-    # Create DataFrame with correct index alignment
-    implementation_plan = pd.DataFrame([phases[i] for i in range(1, 4)],
-                            columns=['actions', 'stations', 'ports', 'cost'])
-    implementation_plan.index = range(1, 4)
-    implementation_plan.index.name = 'Phase'
-
-    # Rename columns
-    implementation_plan.columns = ['Actions', 'Stations Modified', 'Ports Added', 'Estimated Cost']
-
-    # Create formatters for each column
-    formatters = {
-        'Actions': '{:,.0f}',
-        'Stations Modified': '{:,.0f}',
-        'Ports Added': '{:,.0f}',
-        'Estimated Cost': '${:,.2f}'
+    return {
+        'Phase': phase,
+        'Stations Modified': station_changes,
+        'Ports Added': ports_added,
+        'Ports Removed': ports_removed,
+        'Total Actions': station_changes + total_changes,
+        'Estimated Cost': estimated_cost
     }
-
-    # Format each column
-    for col, formatter in formatters.items():
-        implementation_plan[col] = implementation_plan[col].apply(lambda x: formatter.format(x))
-    
-    implementation_summary = []
-    implementation_summary.append(make_header("Implementation Plan".upper(), "="))
-    implementation_summary.append(make_header("Phase Details", "-"))
-    implementation_summary.append("Phase 1: L2 to L3 Upgrades")
-    implementation_summary.append("   • Convert existing L2 stations to L3")
-    implementation_summary.append("   • Install new L3 ports")
-    implementation_summary.append("   • Upgrade electrical infrastructure")
-
-    implementation_summary.append("\nPhase 2: New L3 Stations")
-    implementation_summary.append("   • Install new L3 stations")
-    implementation_summary.append("   • Add L3 charging ports")
-    implementation_summary.append("   • Implement grid connections")
-
-    implementation_summary.append("\nPhase 3: New L2 Network")
-    implementation_summary.append("   • Install new L2 stations")
-    implementation_summary.append("   • Add L2 charging ports")
-    implementation_summary.append("   • Complete network coverage")
-    
-    implementation_summary.append(make_header("Detailed Phase Analysis", "-"))
-
-    # Print the table
-    implementation_summary.append(tabulate(implementation_plan, headers='keys', tablefmt='grid', showindex=True,
-                        colalign=('center', 'center', 'center', 'center', 'decimal')))
-
-    implementation_summary = format_newline(implementation_summary)
-
-    if display:
-        print(implementation_summary)
-    
-    return implementation_summary, implementation_plan.to_dict(orient='records')

@@ -42,6 +42,7 @@ A comprehensive mixed-integer linear programming (MILP) optimization model for s
     - [3.6. Visualization and Reporting](#36-visualization-and-reporting)
       - [3.6.1. Interactive Maps (`map_viz.py`)](#361-interactive-maps-map_vizpy)
       - [3.6.2. Results Dashboard](#362-results-dashboard)
+    - [3.7. Port Retention Strategy](#37-port-retention-strategy)
   - [4. Getting Started](#4-getting-started)
     - [4.1. Environment Setup](#41-environment-setup)
       - [4.1.1 Prerequisites](#411-prerequisites)
@@ -82,16 +83,7 @@ A comprehensive mixed-integer linear programming (MILP) optimization model for s
     - [9.1. Model Definition](#91-model-definition)
     - [9.2. Decision Variables](#92-decision-variables)
     - [9.3. Parameters](#93-parameters)
-      - [1. Coverage Parameters](#1-coverage-parameters)
-      - [2. Cost Parameters](#2-cost-parameters)
-      - [3. Infrastructure Parameters](#3-infrastructure-parameters)
     - [9.4. Constraints](#94-constraints)
-      - [1. Coverage Constraints](#1-coverage-constraints)
-      - [2. Budget Constraints](#2-budget-constraints)
-      - [3. Grid Capacity Constraints](#3-grid-capacity-constraints)
-      - [4. Logical Constraints](#4-logical-constraints)
-      - [5. Service Area Constraints](#5-service-area-constraints)
-      - [6. Non-Negativity and Integrality](#6-non-negativity-and-integrality)
     - [9.5. Objective Function](#95-objective-function)
       - [9.5.1. Multi-Objective Function](#951-multi-objective-function)
       - [9.5.2. Weighted Function](#952-weighted-function)
@@ -105,12 +97,12 @@ The project covers the entire KWC-CMA region including:
 - Major Cities: Kitchener, Waterloo, Cambridge
 - Townships: Woolwich, Wilmot, North Dumfries, Wellesley
 - Total Area: 1,092.33 km²
-- Population: 622,370 (Region of Waterloo Data)
+- Population: 637,730 (Region of Waterloo Data)
 - Key Features: Dense urban cores, suburban areas, rural communities
 
 ### 1.2. Core Strategies
 
-1. **Strategic L2 to L3 Conversion**
+1. **L2 to L3 Conversion**
    - Identification of high-impact L2 stations for L3 upgrades based on:
      - Current utilization patterns
      - Grid infrastructure capacity
@@ -121,8 +113,16 @@ The project covers the entire KWC-CMA region including:
      - Grid upgrade requirements
      - Expected usage patterns
      - Revenue potential
+     - L2 port retention costs
 
-2. **Network Coverage Enhancement**
+2. **Port retention**
+     - Retains minimum L2 ports for non-L3 compatible vehicles
+     - Sell excess L2 ports based on L3 space requirements
+     - Optimize total port capacity
+     - Balances upgrade costs with equipment resale value
+     - Preserves charging accessibility for all vehicle types
+
+3. **Network Coverage Enhancement**
    - Population coverage maximization through:
      - Demographic-weighted demand analysis
      - EV ownership pattern integration
@@ -134,7 +134,7 @@ The project covers the entire KWC-CMA region including:
      - Transit hub integration
      - Grid capacity constraints
 
-3. **Infrastructure Optimization**
+4. **Infrastructure Optimization**
    - Data-driven port allocation:
      - Usage pattern analysis
      - Peak demand consideration
@@ -146,16 +146,22 @@ The project covers the entire KWC-CMA region including:
      - Transit accessibility
      - Grid infrastructure
 
-4. **Comprehensive Network Planning**
-   - Multi-objective optimization balancing:
-     - Coverage maximization
-     - Cost minimization
-     - Grid capacity constraints
-     - Implementation feasibility
+5. **Comprehensive Network Planning**
+    Multi-objective optimization balancing:
+   - Coverage maximization
+   - Cost minimization
+   - Grid capacity constraints
+   - Implementation feasibility
    - Phased implementation strategy:
      - Priority upgrades
      - Coverage gap filling
      - Future expansion preparation
+
+6. **Implementation Planning**
+   - Phased approach with carefully managed transitions
+   - Maintains service continuity during upgrades
+   - Strategic port allocation across network
+   - Infrastructure readiness assessment
 
 ## 2. Methodology and Data Pipeline
 
@@ -245,22 +251,23 @@ The project follows a systematic data collection approach implemented in `data_m
 Our analysis workflow, implemented across multiple notebooks, processes raw data into optimization inputs:
 
 #### 2.2.1. Location Analysis (`02_location_analysis.ipynb`)
-- Population distribution analysis
-- Transit accessibility scoring
-- Demographic pattern identification
-- Service area calculations
+  - Population distribution analysis
+  - Transit accessibility scoring
+  - Demographic pattern identification
+  - Service area calculations
 
 #### 2.2.2. Enhancement Analysis (`03_enhancement_analysis.ipynb`)
-- Current infrastructure assessment
-- Upgrade opportunity identification
-- Grid capacity evaluation
-- Cost-benefit calculations
+  - Identification of upgrade candidates
+  - Port retention calculations
+  - Cost-benefit analysis with retained ports
+  - Grid capacity verification
+  - Implementation feasibility assessment
 
 #### 2.2.3. Data Preparation (`04_data_preparation.ipynb`)
-- Demand point generation
-- Constraint parameter calculation
-- Distance matrix computation
-- Site suitability scoring
+  - Demand point generation
+  - Constraint parameter calculation
+  - Distance matrix computation
+  - Site suitability scoring
 
 ### 2.3. Demand Point Generation
 The project creates sophisticated demand points to represent charging needs through a multi-factor analysis.
@@ -308,17 +315,17 @@ graph LR
 - **Solver**: Gurobi Optimizer (Academic WLS License)
 - **Implementation**: `network_optimizer.py`
 - **Key Features**:
-  - Multi-objective optimization
-  - Budget-aware planning
-  - Grid capacity constraints
-  - Coverage requirements
+   - Port retention constraints
+   - Budget-aware planning with resale consideration
+   - Grid capacity constraints
+   - Coverage requirements with dual charging types
 
 #### 3.1.2. Decision Framework
 - **Station Decisions**:
   - New L2/L3 station placement
-  - L2 to L3 conversions
-  - Station removal options
-  - Port count optimization
+  - L2 to L3 conversions with port retention
+  - Station type selection
+  - Coverage optimization
 
 - **Coverage Analysis**:
   - Population coverage tracking
@@ -545,6 +552,33 @@ graph LR
   - Financial analysis
   - Timeline tracking
   - Impact assessment
+
+### 3.7. Port Retention Strategy
+
+The model employs a sophisticated port retention strategy during L2 to L3 upgrades:
+
+1. **Retention Logic**
+   - Maintains minimum required L2 ports (`min_ports_per_l2`) at upgraded stations, which is reasonably set as `1`.
+   - Ensures charging accessibility for non-L3 compatible vehicles
+   - Balances retention with L3 space requirements
+
+2. **Cost Considerations**
+   - Selective resale of excess L2 ports
+   - Optimizes between retention benefits and upgrade costs
+   - Factors in resale value of removed ports
+   - Considers installation costs for new L3 infrastructure
+
+3. **Implementation Impact**
+   - Phased transition that maintains service continuity
+   - Balanced distribution of charging options
+   - Future-proof infrastructure development
+   - Grid capacity optimization
+
+4. **Design Rationale**
+   - No assumption of total space availability
+   - Flexible adaptation to site conditions
+   - Priority on maintaining service accessibility
+   - Cost-effective infrastructure evolution
 
 ## 4. Getting Started
 
@@ -890,7 +924,7 @@ $$
 & \text{Sets and Indices:} \\
 & I = \{1,\ldots,n\} && \text{Set of potential charging station locations} \\
 & J = \{1,\ldots,m\} && \text{Set of demand points} \\
-& K = \{1,\ldots,k\} && \text{Set of existing charging stations} \\
+& K = \{1,\ldots,k\} && \text{Set of existing L2 stations} \\
 & T = \{1,\ldots,t\} && \text{Set of time periods in planning horizon}
 \end{aligned}
 $$
@@ -905,8 +939,9 @@ $$
 & u_k \in \{0,1\} && \forall k \in K && \text{1 if L2 station k upgraded to L3} \\
 \\ \\
 & \text{Port Allocation:} \\
-& p^2_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L2 ports at i} \\
-& p^3_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L3 ports at i} \\
+& p^2_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L2 ports at new station i} \\
+& p^3_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L3 ports at new station i} \\
+& r^2_k \in \mathbb{Z}^+ && \forall k \in K && \text{Number of L2 ports retained at upgraded station k} \\
 \\ \\
 & \text{Coverage Variables:} \\
 & c^2_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L2} \\
@@ -916,137 +951,58 @@ $$
 
 ### 9.3. Parameters
 
-#### 1. Coverage Parameters
 $$
 \begin{aligned}
+& \text{Infrastructure Requirements:} \\
+& P^2_{min} && \text{Minimum L2 ports required at new L2 stations} \\
+& P^3_{min} && \text{Minimum L3 ports required at new L3 stations} \\
+& P^2_{keep} && \text{Minimum L2 ports to retain at upgraded stations} \\
+& G && \text{Maximum grid capacity per site (kW)} \\
+& \rho_2 && \text{Power required per L2 port (kW)} \\
+& \rho_3 && \text{Power required per L3 port (kW)} \\
+\\ \\
+& \text{Coverage Parameters:} \\
 & R_2 && \text{L2 coverage radius (km)} \\
 & R_3 && \text{L3 coverage radius (km)} \\
 & \alpha && \text{Minimum required L2 coverage} \\
-& \beta && \text{Minimum required L3 coverage}
-\end{aligned}
-$$
-
-#### 2. Cost Parameters
-$$
-\begin{aligned}
+& \beta && \text{Minimum required L3 coverage} \\
+\\ \\
+& \text{Cost Parameters:} \\
 & C_{L2} && \text{Cost of new L2 station} \\
 & C_{L3} && \text{Cost of new L3 station} \\
 & C_{P2} && \text{Cost per L2 port} \\
 & C_{P3} && \text{Cost per L3 port} \\
 & C_U && \text{Cost of L2 to L3 upgrade} \\
+& \gamma && \text{L2 equipment resale factor} \\
 & B && \text{Total available budget}
-\end{aligned}
-$$
-
-#### 3. Infrastructure Parameters
-$$
-\begin{aligned}
-& G_i && \text{Grid capacity at location } i \text{ (kW)} \\
-& P_2 && \text{Power per L2 port (kW)} \\
-& P_3 && \text{Power per L3 port (kW)} \\
-& M && \text{Maximum ports per station}
 \end{aligned}
 $$
 
 ### 9.4. Constraints
 
-#### 1. Coverage Constraints
-
 $$
 \begin{aligned}
-& \text{L2 Coverage Requirements:} \\
+& \text{1. Coverage Constraints:} \\
 & c^2_j \leq \sum_{i \in I_j^2} (y_i + z_i) + \sum_{k \in K_j^2} (1-u_k) && \forall j \in J \\
-& \sum_{j \in J} c^2_j \cdot w_j \geq \alpha && \text{Minimum L2 coverage} \\
-\\ \\
-& \text{L3 Coverage Requirements:} \\
 & c^3_j \leq \sum_{i \in I_j^3} z_i + \sum_{k \in K_j^3} u_k && \forall j \in J \\
-& \sum_{j \in J} c^3_j \cdot w_j \geq \beta && \text{Minimum L3 coverage}
-\end{aligned}
-$$
-
-where:
-- $I_j^2$ is the set of potential sites within L2 radius of point j
-- $I_j^3$ is the set of potential sites within L3 radius of point j
-- $K_j^2$ is the set of existing L2 stations covering point j
-- $K_j^3$ is the set of existing L3 stations covering point j
-
-#### 2. Budget Constraints
-
-$$
-\begin{aligned}
-\text{cost} = 
-& \sum_{i \in I} (y_i \cdot C_{L2} + z_i \cdot C_{L3}) \\
-& + \sum_{i \in I} (p^2_i \cdot C_{P2} \\
-& + p^3_i \cdot C_{P3}) + \sum_{k \in K} u_k \cdot C_U \\ 
-& - \sum_{k \in K} u_k \cdot (C_{L2} \cdot \gamma + p^2_k \cdot C_{P2} \cdot \gamma)
-\end{aligned}
-$$
-
-$$
-\begin{aligned}
-& \text{Total Cost Limitation:} \\
-& \text{cost} \leq B
-\end{aligned}
-$$
-
-where:
-- $\gamma$ is the resale factor for existing equipment (0-1)
-- $p^2_k$ is the number of existing L2 ports at station k
-
-#### 3. Grid Capacity Constraints
-
-$$
-\begin{aligned}
-& \text{Power Limitations:} \\
-& P_2 \cdot p^2_i + P_3 \cdot p^3_i \leq G_i && \forall i \in I \\
+& \sum_{j \in J} c^2_j \cdot w_j \geq \alpha && \text{Minimum L2 coverage} \\
+& \sum_{j \in J} c^3_j \cdot w_j \geq \beta && \text{Minimum L3 coverage} \\
 \\ \\
-& \text{Existing Station Power:} \\
-& P_2 \cdot p^2_k \cdot (1-u_k) + P_3 \cdot p^3_k \cdot u_k \leq G_k && \forall k \in K
-\end{aligned}
-$$
-
-#### 4. Logical Constraints
-
-$$
-\begin{aligned}
-& \text{Station Type Exclusivity:} \\
-& y_i + z_i \leq 1 && \forall i \in I \\
+& \text{2. Port Constraints:} \\
+& p^2_i \geq P^2_{min} \cdot y_i && \forall i \in I \\
+& p^3_i \geq P^3_{min} \cdot z_i && \forall i \in I \\
+& r^2_k \geq P^2_{keep} \cdot u_k && \forall k \in K \\
 \\ \\
-& \text{Port Assignment Rules:} \\
-& p^2_i \leq M \cdot (y_i + z_i) && \forall i \in I \\
-& p^3_i \leq M \cdot (z_i + u_i) && \forall i \in I \\
+& \text{3. Grid Constraints:} \\
+& \rho_2 p^2_i + \rho_3 p^3_i \leq G && \forall i \in I \\
+& \rho_2 r^2_k + \rho_3 p^3_k \leq G && \forall k \in K \\
 \\ \\
-& \text{Minimum Port Requirements:} \\
-& p^2_i \geq y_i && \forall i \in I \\
-& p^3_i \geq 2(z_i + u_i) && \forall i \in I
-\end{aligned}
-$$
-
-#### 5. Service Area Constraints
-
-$$
-\begin{aligned}
-& \text{Maximum L3 Stations per Area:} \\
-& \sum_{i \in A} (z_i + u_i) \leq N_A && \forall \text{ area } A \\
+& \text{4. Budget Constraint:} \\
+& \sum_{i \in I} (y_i C_{L2} + z_i C_{L3} + p^2_i C_{P2} + p^3_i C_{P3}) + \\
+& \sum_{k \in K} u_k(C_U - \gamma C_{L2} - \gamma C_{P2} \cdot min(p^2_k - P^2_{keep}, P^3_{min})) \leq B \\
 \\ \\
-& \text{L3 Station Spacing:} \\
-& d_{ij} \cdot (z_i + u_i) \cdot (z_j + u_j) \geq D_{min} && \forall i,j \in I, i \neq j
-\end{aligned}
-$$
-
-where:
-- $A$ represents a defined service area
-- $N_A$ is the maximum allowed L3 stations in area A
-- $d_{ij}$ is the distance between locations i and j
-- $D_{min}$ is the minimum required distance between L3 stations
-
-#### 6. Non-Negativity and Integrality
-
-$$
-\begin{aligned}
-& y_i, z_i, u_k, c^2_j, c^3_j \in \{0,1\} \\
-& p^2_i, p^3_i \in \mathbb{Z}^+ \\
-& \forall i \in I, k \in K, j \in J
+& \text{5. Logical Constraints:} \\
+& y_i + z_i \leq 1 && \forall i \in I
 \end{aligned}
 $$
 
@@ -1060,7 +1016,8 @@ $$
     \begin{array}{l}
         \max \quad & \sum_{j \in J} c^3_j \cdot w_j \\ \\
         \max \quad & \sum_{j \in J} c^2_j \cdot w_j \\ \\
-        \min \quad & \text{cost}
+        \min \quad & \sum_{i \in I} (y_i C_{L2} + z_i C_{L3} + p^2_i C_{P2} + p^3_i C_{P3}) + \\
+        & \sum_{k \in K} u_k(C_U - \gamma C_{L2} - \gamma C_{P2} \cdot min(p^2_k - P^2_{keep}, P^3_{min}))
     \end{array}
     \right\} \tag{3-OBJ}
 \end{align*}
@@ -1075,7 +1032,7 @@ $$
 $$
 
 where:
-- $w_j$ is the population weight at demand point j
-- $\lambda_1, \lambda_2, \lambda_3$ are objective weights in the form of percentages for L3 coverage, L2 coverage, and cost respectively
+- $w_j$ is the population-weighted demand at point j (incorporating EV adoption, infrastructure quality, population density, transit access, and infrastructure age)
+- $\lambda_1, \lambda_2, \lambda_3$ are objective weights (as percentages) for L3 coverage, L2 coverage, and cost respectively
 - $\lambda_1 + \lambda_2 + \lambda_3 = 100$
 - $\lambda_1, \lambda_2, \lambda_3 > 0$

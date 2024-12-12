@@ -78,14 +78,21 @@ class DataValidationError(DataError):
 
 class DataManager:
     """
-    Unified data manager for KWC-CMA region.
+    Unified data manager for KWC-CMA region infrastructure analysis.
     
-    This class provides comprehensive functionality for:
+    Manages comprehensive data pipeline including:
     - Data collection from multiple sources
-    - Geographic data processing and validation
     - Population and demographic analysis
-    - Infrastructure and accessibility analysis
-    - Data quality management and caching
+    - Infrastructure analysis with port management
+    - Quality control and validation
+    - Caching and persistence
+    
+    Key Features:
+    - Port configuration tracking
+    - Grid capacity assessment
+    - Quality assurance checks
+    - Data integration and validation
+    - Cache management
     """
     
     def __init__(self, cache_dir: Optional[Path] = None, 
@@ -1557,7 +1564,7 @@ class DataManager:
             
             # Calculate regional totals for verification
             total_pop = primary_data['population'].sum()
-            total_area = primary_data['area_km2'].sum()
+            total_area = primary_data[primary_data['GEO_LEVEL'] != 'Census metropolitan area']['area_km2'].sum()
             avg_density = total_pop / total_area
             
             print("    📊 Regional Summary:")
@@ -2254,11 +2261,22 @@ class DataManager:
     def analyze_charging_infrastructure(self) -> Dict[str, Union[Dict, pd.DataFrame]]:
         """
         Analyze existing charging infrastructure and coverage.
-        Uses previously saved data instead of fetching again.
+        
+        Analysis includes:
+        - Current infrastructure distribution
+        - Port configurations and utilization
+        - Coverage analysis by charger type
+        - Grid capacity assessment
+        - Future upgrade potential considering:
+            * Port retention requirements
+            * Grid capacity constraints
+            * Population coverage needs
+            * Implementation feasibility
         
         Returns:
-            Dict containing charging infrastructure analysis
+            Dict containing comprehensive analysis
         """
+
         try:
             # Load saved charging station data
             stations_df = load_latest_file(DATA_PATHS['charging_stations'])
@@ -2713,7 +2731,14 @@ class DataManager:
 
     def _validate_integrated_data(self, data: Dict) -> None:
         """
-        Validate integrated dataset.
+        Validate integrated dataset including port configurations.
+        
+        Checks:
+        - Port count consistency
+        - Grid capacity requirements
+        - Coverage calculations
+        - Cost computations with port retention
+        - Implementation feasibility
         
         Args:
             data: Dict of integrated data to validate
@@ -2721,6 +2746,7 @@ class DataManager:
         Raises:
             DataValidationError: If validation fails
         """
+
         validation_errors = []
         
         # Check required components
@@ -2790,9 +2816,23 @@ class DataManager:
         """
         Perform comprehensive data quality checks.
         
+        Validates:
+        - Data completeness and accuracy
+        - Port count consistency
+        - Grid capacity data
+        - Coverage calculations
+        - Implementation feasibility
+        
+        Quality metrics include:
+        - Completeness scores
+        - Consistency checks
+        - Coverage validation
+        - Infrastructure verification
+        
         Returns:
-            Dict containing quality metrics by category
+            Dict of quality metrics by category
         """
+        
         quality_metrics = {
             'completeness': {},
             'consistency': {},
@@ -3172,9 +3212,15 @@ class DataManager:
             # Calculate theoretical maximum coverage
             l2_possible = np.any(distances <= config['coverage']['l2_radius'], axis=0)
             l3_possible = np.any(distances <= config['coverage']['l3_radius'], axis=0)
-            print(f"\nTheoretical Coverage Possible (with unlimited budget):")
-            print(f"- L2 coverage possible: {np.mean(l2_possible):.2%}")
-            print(f"- L3 coverage possible: {np.mean(l3_possible):.2%}")
+            print(f"\nTheoretical Coverage Possible with respect to:")
+            print(f" - Unlimited Budget")
+            print(f" - Unlimited Site Capacity")
+            print(f" - Unlimited Grid Capacity")
+            print(f" - Unlimited Charging Speed")
+            print(f" - Available Potential Sites")
+            print(f"\nWe could achieve:")
+            print(f" - L2 Stations (with only L2 charging ports): {np.mean(l2_possible):.2%}")
+            print(f" - L3 Stations (with L2 & L3 charging ports): {np.mean(l3_possible):.2%}")
             
             return {
                 'existing_stations': stations_gdf,

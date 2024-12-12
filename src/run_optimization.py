@@ -65,15 +65,6 @@ def run_optimization(scenario: Optional[str] = None, output_dir: str = None):
         input_data = data_mgr.prepare_optimization_data()
         print(make_header("✅ Optimization Data Preparation Complete!", "="))
         
-        # Add constraints from config
-        input_data['constraints'] = {
-            'budget': config['budget']['default'],
-            'min_coverage_l2': config['coverage']['min_coverage_l2'],
-            'min_coverage_l3': config['coverage']['min_coverage_l3'],
-            'max_l3_distance': config['coverage']['l3_radius'],
-            'max_stations_per_area': config['infrastructure']['max_new_ports']
-        }
-        
         divider = "\n" + 70 * "=" + "\n"
 
         # Initialize Optimizer
@@ -108,7 +99,7 @@ def run_optimization(scenario: Optional[str] = None, output_dir: str = None):
         solution_file = save_results(solution, 'solution', 'json', output_dir)
         print(f"✓ Solution saved to {solution_file}")
 
-        solution_summary = get_solution_summary(solution, config, scenario)
+        solution_summary = get_solution_summary(solution, scenario)
         solution_summary_file = save_results(solution_summary, 'solution', 'txt', output_dir)
         print(f"✓ Solution summary saved to {solution_summary_file}")
         print(divider)
@@ -117,10 +108,9 @@ def run_optimization(scenario: Optional[str] = None, output_dir: str = None):
         print("📈 Creating Visualizations...")
             
         stations_df = load_latest_file(DATA_PATHS['charging_stations'])
-        solution_mapped = solution.copy()
         
         # Results visualization
-        fig = plot_optimization_results(solution_mapped, stations_df)
+        fig = plot_optimization_results(solution)
         print("✓ Optimization results plots created!")
 
         # Coverage map
