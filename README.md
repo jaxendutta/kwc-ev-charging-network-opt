@@ -177,7 +177,7 @@ The project covers the entire KWC-CMA region including:
 
 ```mermaid
 graph TD
-    A[Data Collection] -->│data_manager.py│ B[Raw Data Storage]
+    A[Data Collection] --> |data_manager.py| B[Raw Data Storage]
     B --> C[Data Processing]
     
     subgraph "Primary Data Sources"
@@ -284,17 +284,17 @@ The project creates sophisticated demand points to represent charging needs thro
 
 ```mermaid
 graph LR
-    A[Census Tracts] -->│Population Weighting│ B[Base Points]
-    C[Transit Data] -->│Accessibility Score│ D[Transit Factor]
-    E[EV Ownership] -->│Density Analysis│ F[EV Factor]
-    G[Infrastructure] -->│Quality Assessment│ H[Infrastructure Factor]
+    A[Census Tracts] --> |Population Weighting| B[Base Points]
+    C[Transit Data] --> |Accessibility Score| D[Transit Factor]
+    E[EV Ownership] --> |Density Analysis| F[EV Factor]
+    G[Infrastructure] --> |Quality Assessment| H[Infrastructure Factor]
     
     B --> I[Demand Points]
     D --> I
     F --> I
     H --> I
     
-    I -->│Score Calculation│ J[Final Weighted Points]
+    I --> |Score Calculation| J[Final Weighted Points]
   ```
 
 #### 2.3.1. Population-Based Points: Base Generation
@@ -412,7 +412,7 @@ graph TD
         G --> D
     end
     
-    G -->│Convergence│ H[Final Solution]
+    G --> |Convergence| H[Final Solution]
     H --> I[Implementation Planning]
     H --> J[Sensitivity Analysis]
 ```
@@ -602,33 +602,33 @@ The model employs a sophisticated port retention strategy during L2 to L3 upgrad
 #### 4.1.2. Core Dependencies
 
 1. **Core Data Processing**
-   - numpy
-   - pandas
-   - scipy
+   - `numpy`
+   - `pandas`
+   - `scipy`
 
 1. **Geospatial Analysis**
-   - geopandas
-   - pyproj
-   - shapely
-   - osmnx
-   - haversine
+   - `geopandas`
+   - `pyproj`
+   - `shapely`
+   - `osmnx`
+   - `haversine`
 
 1. **Optimization**
-   - gurobipy
+   - `gurobipy`
 
 1. **Visualization**
-   - matplotlib
-   - folium
-   - branca
+   - `matplotlib`
+   - `folium`
+   - `branca`
 
 1. **API & Network**
-   - requests
-   - ratelimit
-   - python-dotenv
+   - `requests`
+   - `ratelimit`
+   - `python-dotenv`
 
 1. **Progress & Formatting**
-   - tqdm
-   - tabulate
+   - `tqdm`
+   - `tabulate`
 
 ### 4.2. Installation
 
@@ -1011,6 +1011,7 @@ $$
 
 ##### 1. Level 2 Coverage, $y^2_j$
 All demand points being covered by stations offering Level 2 charging ports. This would include Level 2 stations upgraded to Level 3 standards, since they would retain at least one Level 2 charging port.
+
 $$
 \begin{equation*}
 y^2_j \leq \sum_{i \in P^2_j}x^2_i + \sum_{i \in S^2}(1-u_i), \quad \forall j \in D
@@ -1019,6 +1020,7 @@ $$
 
 ##### 2. Level 3 Coverage, $y^3_j$
 All demand points being covered by stations offering Level 3 charging ports. This would include Level 2 stations upgraded to Level 3 standards.
+
 $$
 \begin{equation*}
 y^3_j \leq \sum_{i \in P^3_j}x^3_i + \sum_{i \in S^2}u_i, \quad \forall j \in D
@@ -1027,6 +1029,7 @@ $$
 
 ##### 3. Minimum Coverage Requirements
 The individual coverages calculated according to the wights assigned to the deman points should meet the minimum coverage requirements outlined in our parameters.
+
 $$
 \begin{align*}
 & \sum_{j}(w_j \cdot y^2_j) \geq \alpha_2 \quad  \\
@@ -1036,6 +1039,7 @@ $$
 
 #### 9.4.4. Grid Capacity Constraints
 The power needs of station placements (calculated depending on the quantity of charging ports it offers) should not exceed the grid capacity offered by the region.
+
 $$
 \begin{equation*}
 g_2 \cdot p_2 \cdot x^2_i + g_3 \cdot p_3 \cdot (x^3_i + u_i)\leq G_i, \quad \forall i \in P
@@ -1057,23 +1061,23 @@ C =
 \end{align*}
 $$
 
-So, we can incorprate all of our data to formulate our multi-objective function as:
+So, we can incorprate all of our data to formulate our multi-objective function as a $\text{(3-OBJ)}$:
 
 $$
 \begin{align*}
-    \left\{
-    \begin{array}{l}
-        \max \quad & \sum_{j \in D} w_j \cdot y^2_j \\ \\
-        \max \quad & \sum_{j \in D} w_j \cdot y^3_j \\ \\
-        \min \quad & C
-    \end{array}
-    \right\} \tag{3-OBJ}
+\left\lbrace
+\begin{array}{l}
+\max \quad & \sum_{j \in D} w_j \cdot y^2_j \\
+\max \quad & \sum_{j \in D} w_j \cdot y^3_j \\
+\min \quad & C
+\end{array}
+\right\rbrace \tag{3-OBJ}
 \end{align*}
 $$
 
 #### 9.5.2. Weighted Function
 
-We can turn this into a weighted linear function as follows:
+We can turn this into a weighted linear function as a $\text{(WT-LP)}$:
 
 $$
 \begin{align*}
