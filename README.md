@@ -80,10 +80,20 @@ A comprehensive mixed-integer linear programming (MILP) optimization model for s
     - [8.2. Cost Parameter Estimation](#82-cost-parameter-estimation)
     - [8.3. Grid Capacity](#83-grid-capacity)
   - [9. Appendix: Mathematical Model Formulation](#9-appendix-mathematical-model-formulation)
-    - [9.1. Model Definition](#91-model-definition)
-    - [9.2. Decision Variables](#92-decision-variables)
-    - [9.3. Parameters](#93-parameters)
+    - [9.1. Data Sets and Indices](#91-data-sets-and-indices)
+    - [9.2. Parameters](#92-parameters)
+      - [9.2.1. Coverage](#921-coverage)
+      - [9.2.2. Costs](#922-costs)
+      - [9.2.3. Infrastructure](#923-infrastructure)
+    - [9.3. Decision Variables](#93-decision-variables)
     - [9.4. Constraints](#94-constraints)
+      - [9.4.1. Station Type Constraints](#941-station-type-constraints)
+      - [9.4.2. Budget Constraints](#942-budget-constraints)
+      - [9.4.3. Coverage Constraints](#943-coverage-constraints)
+        - [1. Level 2 Coverage, $y^2\_j$](#1-level-2-coverage-y2_j)
+        - [2. Level 3 Coverage, $y^3\_j$](#2-level-3-coverage-y3_j)
+        - [3. Minimum Coverage Requirements](#3-minimum-coverage-requirements)
+      - [9.4.4. Grid Capacity Constraints](#944-grid-capacity-constraints)
     - [9.5. Objective Function](#95-objective-function)
       - [9.5.1. Multi-Objective Function](#951-multi-objective-function)
       - [9.5.2. Weighted Function](#952-weighted-function)
@@ -915,109 +925,147 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 9. Appendix: Mathematical Model Formulation
 
-### 9.1. Model Definition
-
 The optimization model is formulated as a mixed-integer linear program:
 
-$$
-\begin{aligned}
-& \text{Sets and Indices:} \\
-& I = \{1,\ldots,n\} && \text{Set of potential charging station locations} \\
-& J = \{1,\ldots,m\} && \text{Set of demand points} \\
-& K = \{1,\ldots,k\} && \text{Set of existing L2 stations} \\
-& T = \{1,\ldots,t\} && \text{Set of time periods in planning horizon}
-\end{aligned}
-$$
+### 9.1. Data Sets and Indices
 
-### 9.2. Decision Variables
+We have the following data sets from our data collection .
 
-$$
-\begin{aligned}
-& \text{Station Decisions:} \\
-& y_i \in \{0,1\} && \forall i \in I && \text{1 if new L2 station placed at i} \\
-& z_i \in \{0,1\} && \forall i \in I && \text{1 if new L3 station placed at i} \\
-& u_k \in \{0,1\} && \forall k \in K && \text{1 if L2 station k upgraded to L3} \\
-\\ \\
-& \text{Port Allocation:} \\
-& p^2_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L2 ports at new station i} \\
-& p^3_i \in \mathbb{Z}^+ && \forall i \in I && \text{Number of L3 ports at new station i} \\
-& r^2_k \in \mathbb{Z}^+ && \forall k \in K && \text{Number of L2 ports retained at upgraded station k} \\
-\\ \\
-& \text{Coverage Variables:} \\
-& c^2_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L2} \\
-& c^3_j \in \{0,1\} && \forall j \in J && \text{1 if demand point j covered by L3}
-\end{aligned}
-$$
+| Set     | Description                                                   |
+|---------|---------------------------------------------------------------|
+| $P$     | Set of potential locations, $i \in P$                         |
+| $D$     | Set of demand points, $j \in D$                               |
+| $S^2$   | Set of existing Level 2 stations (upgrade candidates)         |
+| $S^3$   | Set of existing Level 3 stations                              |
+| $P^2_j$ | Set of potential locations within the Level 2 coverage radius of demand point $j \in D$ |
+| $P^3_j$ | Set of potential locations within the Level 3 coverage radius of demand point $j \in D$ |
 
-### 9.3. Parameters
+### 9.2. Parameters
 
-$$
-\begin{aligned}
-& \text{Infrastructure Requirements:} \\
-& P^2_{min} && \text{Minimum L2 ports required at new L2 stations} \\
-& P^3_{min} && \text{Minimum L3 ports required at new L3 stations} \\
-& P^2_{keep} && \text{Minimum L2 ports to retain at upgraded stations} \\
-& G && \text{Maximum grid capacity per site (kW)} \\
-& \rho_2 && \text{Power required per L2 port (kW)} \\
-& \rho_3 && \text{Power required per L3 port (kW)} \\
-\\ \\
-& \text{Coverage Parameters:} \\
-& R_2 && \text{L2 coverage radius (km)} \\
-& R_3 && \text{L3 coverage radius (km)} \\
-& \alpha && \text{Minimum required L2 coverage} \\
-& \beta && \text{Minimum required L3 coverage} \\
-\\ \\
-& \text{Cost Parameters:} \\
-& C_{L2} && \text{Cost of new L2 station} \\
-& C_{L3} && \text{Cost of new L3 station} \\
-& C_{P2} && \text{Cost per L2 port} \\
-& C_{P3} && \text{Cost per L3 port} \\
-& C_U && \text{Cost of L2 to L3 upgrade} \\
-& \gamma && \text{L2 equipment resale factor} \\
-& B && \text{Total available budget}
-\end{aligned}
-$$
+#### 9.2.1. Coverage
+
+| Symbol     | Meaning                                             |
+|------------|-----------------------------------------------------|
+| $w_j$      | Normalized population weight at demand point $j$    |
+| $r_2$      | Coverage radius for Level 2 stations                |
+| $r_3$      | Coverage radius for Level 3 stations                |
+| $\alpha_2$ | Minimum required Level 2 coverage                   |
+| $\alpha_3$ | Minimum required Level 3 coverage                   |
+
+#### 9.2.2. Costs
+
+| Symbol  | Meaning                          |
+|---------|----------------------------------|
+| $c_2^s$ | Cost of new Level 2 station      |
+| $c_3^s$ | Cost of new Level 3 station      |
+| $c_2^p$ | Cost per Level 2 port            |
+| $c_3^p$ | Cost per Level 3 port            |
+| $\beta$ | Resale value factor              |
+| $B$     | Total available budget           |
+
+#### 9.2.3. Infrastructure
+
+| Symbol | Meaning                            |
+|--------|------------------------------------|
+| $p_2$  | Minimum ports per Level 2 station  |
+| $p_3$  | Minimum ports per Level 3 station  |
+| $g_2$  | Power requirement per Level 2 port |
+| $g_3$  | Power requirement per Level 3 port |
+| $G_i$  | Grid capacity at site $i$          |
+
+
+### 9.3. Decision Variables
+
+| Variable | Indices | Type | Bounds | Meaning |
+|----------|---------|------|--------|---------|
+| $x^2_i$  | $i \in P$ | Binary | $\{0,1\}$ | Install new Level 2 station at site $i$ |
+| $x^3_i$  | $i \in P$ | Binary | $\{0,1\}$ | Install new Level 3 station at site $i$ |
+| $u_i$    | $i \in S^2$ | Binary | $\{0,1\}$ | Upgrade existing Level 2 station $i$ to Level 3 |
+| $y^2_j$ | $j \in D$ | Binary | $\{0,1\}$ | Demand point $j$ is covered by Level 2 charging |
+| $y^3_j$ | $j \in D$ | Binary | $\{0,1\}$ | Demand point $j$ is covered by Level 3 charging |
 
 ### 9.4. Constraints
 
+#### 9.4.1. Station Type Constraints
+
+We cannot place a new Level 2 station as well as a new Level 3 station at the same potential location.
+
 $$
-\begin{aligned}
-& \text{1. Coverage Constraints:} \\
-& c^2_j \leq \sum_{i \in I_j^2} (y_i + z_i) + \sum_{k \in K_j^2} (1-u_k) && \forall j \in J \\
-& c^3_j \leq \sum_{i \in I_j^3} z_i + \sum_{k \in K_j^3} u_k && \forall j \in J \\
-& \sum_{j \in J} c^2_j \cdot w_j \geq \alpha && \text{Minimum L2 coverage} \\
-& \sum_{j \in J} c^3_j \cdot w_j \geq \beta && \text{Minimum L3 coverage} \\
-\\ \\
-& \text{2. Port Constraints:} \\
-& p^2_i \geq P^2_{min} \cdot y_i && \forall i \in I \\
-& p^3_i \geq P^3_{min} \cdot z_i && \forall i \in I \\
-& r^2_k \geq P^2_{keep} \cdot u_k && \forall k \in K \\
-\\ \\
-& \text{3. Grid Constraints:} \\
-& \rho_2 p^2_i + \rho_3 p^3_i \leq G && \forall i \in I \\
-& \rho_2 r^2_k + \rho_3 p^3_k \leq G && \forall k \in K \\
-\\ \\
-& \text{4. Budget Constraint:} \\
-& \sum_{i \in I} (y_i C_{L2} + z_i C_{L3} + p^2_i C_{P2} + p^3_i C_{P3}) + \\
-& \sum_{k \in K} u_k(C_U - \gamma C_{L2} - \gamma C_{P2} \cdot min(p^2_k - P^2_{keep}, P^3_{min})) \leq B \\
-\\ \\
-& \text{5. Logical Constraints:} \\
-& y_i + z_i \leq 1 && \forall i \in I
-\end{aligned}
+\begin{equation*}
+x^2_i + x^3_i \leq 1, \quad \forall i \in P
+\end{equation*}
+$$
+
+#### 9.4.2. Budget Constraints
+Our budget needs to be able to accommodate new Level 2 stations, new Level 3 stations, as well as Level 2 stations being upgraded to Level 3. This would also account for their individual charging port installations.
+
+$$
+\begin{align*}
+& \sum_{i}(c_2^s \cdot x^2_i + p_2 \cdot c_2^p \cdot x^2_i) + \\ 
+& \sum_{i}(c_3^s \cdot x^3_i + p_3 \cdot c_3^p \cdot x^3_i) + \\
+& \sum_{i \in S^2}(u_i (c_3^s + p_3 \cdot c_3^p - \beta  \cdot c_2^s - \beta \cdot p_i \cdot c_2^p)) \leq B
+\end{align*}
+$$
+
+#### 9.4.3. Coverage Constraints
+
+##### 1. Level 2 Coverage, $y^2_j$
+All demand points being covered by stations offering Level 2 charging ports. This would include Level 2 stations upgraded to Level 3 standards, since they would retain at least one Level 2 charging port.
+$$
+\begin{equation*}
+y^2_j \leq \sum_{i \in P^2_j}x^2_i + \sum_{i \in S^2}(1-u_i), \quad \forall j \in D
+\end{equation*}
+$$
+
+##### 2. Level 3 Coverage, $y^3_j$
+All demand points being covered by stations offering Level 3 charging ports. This would include Level 2 stations upgraded to Level 3 standards.
+$$
+\begin{equation*}
+y^3_j \leq \sum_{i \in P^3_j}x^3_i + \sum_{i \in S^2}u_i, \quad \forall j \in D
+\end{equation*}
+$$
+
+##### 3. Minimum Coverage Requirements
+The individual coverages calculated according to the wights assigned to the deman points should meet the minimum coverage requirements outlined in our parameters.
+$$
+\begin{align*}
+& \sum_{j}(w_j \cdot y^2_j) \geq \alpha_2 \quad  \\
+& \sum_{j}(w_j \cdot y^3_j) \geq \alpha_3 \quad 
+\end{align*}
+$$
+
+#### 9.4.4. Grid Capacity Constraints
+The power needs of station placements (calculated depending on the quantity of charging ports it offers) should not exceed the grid capacity offered by the region.
+$$
+\begin{equation*}
+g_2 \cdot p_2 \cdot x^2_i + g_3 \cdot p_3 \cdot (x^3_i + u_i)\leq G_i, \quad \forall i \in P
+\end{equation*}
 $$
 
 ### 9.5. Objective Function
 
 #### 9.5.1. Multi-Objective Function
 
+We know we have the total cost function, $C$ as:
+
+$$
+\begin{align*}
+C =
+& \sum_{i}(c_2^s \cdot x^2_i + p_2 \cdot c_2^p \cdot x^2_i) + \\ 
+& \sum_{i}(c_3^s \cdot x^3_i + p_3 \cdot c_3^p \cdot x^3_i) + \\
+& \sum_{i \in S^2}(u_i (c_3^s + p_3 \cdot c_3^p - \beta  \cdot c_2^s - \beta \cdot p_i \cdot c_2^p))
+\end{align*}
+$$
+
+So, we can incorprate all of our data to formulate our multi-objective function as:
+
 $$
 \begin{align*}
     \left\{
     \begin{array}{l}
-        \max \quad & \sum_{j \in J} c^3_j \cdot w_j \\ \\
-        \max \quad & \sum_{j \in J} c^2_j \cdot w_j \\ \\
-        \min \quad & \sum_{i \in I} (y_i C_{L2} + z_i C_{L3} + p^2_i C_{P2} + p^3_i C_{P3}) + \\
-        & \sum_{k \in K} u_k(C_U - \gamma C_{L2} - \gamma C_{P2} \cdot min(p^2_k - P^2_{keep}, P^3_{min}))
+        \max \quad & \sum_{j \in D} w_j \cdot y^2_j \\ \\
+        \max \quad & \sum_{j \in D} w_j \cdot y^3_j \\ \\
+        \min \quad & C
     \end{array}
     \right\} \tag{3-OBJ}
 \end{align*}
@@ -1025,14 +1073,16 @@ $$
 
 #### 9.5.2. Weighted Function
 
-$$
-\begin{aligned}
-\max \quad & \lambda_1 \sum_{j \in J} c^3_j \cdot w_j + \lambda_2 \sum_{j \in J} c^2_j \cdot w_j - \lambda_3 \cdot \text{cost} \tag{WT-OBJ}
-\end{aligned}
-$$
+We can turn this into a weighted linear function as follows:
 
-where:
-- $w_j$ is the population-weighted demand at point j (incorporating EV adoption, infrastructure quality, population density, transit access, and infrastructure age)
-- $\lambda_1, \lambda_2, \lambda_3$ are objective weights (as percentages) for L3 coverage, L2 coverage, and cost respectively
-- $\lambda_1 + \lambda_2 + \lambda_3 = 100$
-- $\lambda_1, \lambda_2, \lambda_3 > 0$
+$$
+\begin{align*}
+\max & \quad \lambda_1\sum_{j}(w_j \cdot y^2_j) + \lambda_2\sum_{j}(w_j \cdot y^3_j) - \lambda_3C \\
+\text{s.t.} & \\
+& \lambda_1: \text{ Weight for Level 2 coverage} \\
+& \lambda_2: \text{ Weight for Level 3 coverage} \\
+& \lambda_3: \text{ Weight for cost minimization} \\
+& \lambda_1 + \lambda_2 + \lambda_3 = 100 \\
+& \lambda_1, \lambda_2, \lambda_3 > 0
+\end{align*}
+$$

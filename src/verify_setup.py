@@ -57,7 +57,7 @@ def check_virtual_env():
             print("\nTo set up a virtual environment in the project root on your system (Windows):")
             print(f"  cd {PROJECT_ROOT}")
             print("  python -m venv venv")
-            print("  \\venv\\Scripts\\activate")
+            print("  .\\venv\\Scripts\\activate")
             
         # Linux/MacOS instructions
         else:
@@ -65,6 +65,10 @@ def check_virtual_env():
             print(f"  cd {PROJECT_ROOT}")
             print("  python3 -m venv venv")
             print("  source venv/bin/activate")
+
+        print("\n💡 TIP!")
+        print("Copy the commands above and paste them into your terminal after you exit if you decide to use a virtual environment.")
+        print("After running those commands, run this script again to verify the setup.")
 
         while True:
             response = input("\nDo you want to proceed without a virtual environment anyway? [y/N]: ").lower()

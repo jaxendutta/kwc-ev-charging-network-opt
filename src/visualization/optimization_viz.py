@@ -48,9 +48,9 @@ def plot_optimization_results(solution: Dict[str, Any], save_path: Optional[str]
     
     # 1. Station Status Distribution - Use the new station structure
     station_counts = {
-        'Initial L2': sum(1 for s in solution['stations']['existing'] 
+        'Existing L2': sum(1 for s in solution['stations']['existing'] 
                          if s['charging']['ports']['initial']['level_2'] > 0 and s not in solution['stations']['upgrades']),
-        'Initial L3': sum(1 for s in solution['stations']['existing']
+        'Existing L3': sum(1 for s in solution['stations']['existing']
                          if s['charging']['ports']['initial']['level_3'] > 0 and s not in solution['stations']['upgrades']),
         'Upgrades': len(solution['stations']['upgrades']),
         'New L2': sum(1 for s in solution['stations']['new'] 
@@ -88,14 +88,24 @@ def plot_optimization_results(solution: Dict[str, Any], save_path: Optional[str]
             'L3': sum(s['charging']['ports']['initial']['level_3'] for s in solution['stations']['existing'])
         },
         'Final': {
-            'L2': sum(s['charging']['ports']['final']['level_2'] 
-                     for s in solution['stations']['existing'] + 
-                     solution['stations']['upgrades'] + 
-                     solution['stations']['new']),
-            'L3': sum(s['charging']['ports']['final']['level_3']
-                     for s in solution['stations']['existing'] + 
-                     solution['stations']['upgrades'] + 
-                     solution['stations']['new'])
+            'L2': (
+                sum(s['charging']['ports']['final']['level_2'] 
+                    for s in solution['stations']['existing'] 
+                    if s not in solution['stations']['upgrades']) +
+                sum(s['charging']['ports']['final']['level_2'] 
+                    for s in solution['stations']['upgrades']) +
+                sum(s['charging']['ports']['final']['level_2'] 
+                    for s in solution['stations']['new'])
+            ),
+            'L3': (
+                sum(s['charging']['ports']['final']['level_3'] 
+                    for s in solution['stations']['existing']
+                    if s not in solution['stations']['upgrades']) +
+                sum(s['charging']['ports']['final']['level_3'] 
+                    for s in solution['stations']['upgrades']) +
+                sum(s['charging']['ports']['final']['level_3'] 
+                    for s in solution['stations']['new'])
+            )
         }
     }
     
@@ -109,15 +119,15 @@ def plot_optimization_results(solution: Dict[str, Any], save_path: Optional[str]
                      width, label='L3 Ports', color='#e74c3c')
 
     # Add value labels
-    def autolabel(rects):
+    def autolabel(axis, rects):
         for rect in rects:
             height = rect.get_height()
-            ax2.text(rect.get_x() + rect.get_width()/2., height,
+            axis.text(rect.get_x() + rect.get_width()/2., height,
                     f'{int(height)}',
                     ha='center', va='bottom')
 
-    autolabel(rects1)
-    autolabel(rects2)
+    autolabel(ax2, rects1)
+    autolabel(ax2, rects2)
     
     ax2.set_title('Charging Port Distribution', fontsize=14, pad=20)
     ax2.set_xticks(x)
@@ -144,8 +154,8 @@ def plot_optimization_results(solution: Dict[str, Any], save_path: Optional[str]
         rects4 = ax3.bar(x + width/2, l3_coverage, width,
                         label='L3 Coverage', color='#e74c3c', alpha=0.7)
         
-        autolabel(rects3)
-        autolabel(rects4)
+        autolabel(ax3, rects3)
+        autolabel(ax3, rects4)
         
         ax3.set_title('Coverage Improvement', fontsize=14, pad=20)
         ax3.set_ylabel('Population Coverage (%)')
