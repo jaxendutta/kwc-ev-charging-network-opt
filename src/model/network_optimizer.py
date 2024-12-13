@@ -1,3 +1,4 @@
+
 """
 Network optimization model for EV charging infrastructure enhancement.
 Handles coverage calculations for both L2 and L3 chargers, station upgrades, 
@@ -19,7 +20,7 @@ from src.model.utils import *
 class EVNetworkOptimizer:
     """
     Network enhancement optimization model with port retention strategy.
-    
+
     Implements a mixed-integer linear programming model for optimizing EV charging 
     infrastructure while maintaining service accessibility through strategic L2 port
     retention during upgrades.
@@ -31,7 +32,7 @@ class EVNetworkOptimizer:
         - Budget optimization with resale value
         - Phased implementation planning
     """
-    
+
     def __init__(self, input_data: Dict[str, Any], config: Dict[str, Any]):
         """Initialize optimizer with input data and configuration."""
         self.logger = logging.getLogger("model.network_optimizer")
@@ -41,23 +42,23 @@ class EVNetworkOptimizer:
         # Store input data with validation
         if not all(k in input_data for k in ['demand_points', 'potential_sites', 'distance_matrix', 'existing_stations']):
             raise ValueError("Missing required input data")
-            
+
         self.demand_points = input_data['demand_points'].copy()
         self.potential_sites = input_data['potential_sites'].copy()
         self.distances = input_data['distance_matrix'].copy()
         self.stations_df = input_data['existing_stations'].copy()
-        
+
         # Process existing stations
         self.existing_l2 = self.stations_df[self.stations_df['charger_type'] == 'Level 2'].copy()
         self.existing_l3 = self.stations_df[self.stations_df['charger_type'] == 'Level 3'].copy()
-        
+
         # Store key statistics
         self.n_demand_points = len(self.demand_points)
         self.n_potential_sites = len(self.potential_sites)
         self.n_existing_stations = len(self.stations_df)
         self.n_existing_l2 = len(self.existing_l2)
         self.n_existing_l3 = len(self.existing_l3)
-        
+
         # Fill any null values with defaults
         self.demand_points = self.demand_points.fillna(0)
         self.potential_sites = self.potential_sites.fillna(0)
@@ -72,10 +73,10 @@ class EVNetworkOptimizer:
 
         # Calculate initial coverage
         self.initial_coverage = self._calculate_initial_coverage()
-        
+
         # Initialize variables storage
         self.variables = {}
-    
+
     # ----------------
     # Main Public Methods
     # ----------------
@@ -84,35 +85,58 @@ class EVNetworkOptimizer:
         """Run optimization with full solution processing."""
         try:
             print("\n1. Setting up optimization model...")
-            
-            self.model.setParam('OutputFlag', 0)  # Suppress Gurobi output
+
+            self.model.Params.OutputFlag = 0  # Suppress Gurobi output
             self.model.Params.DualReductions = 0
             self.model.Params.PreDual = 0
-            self.model.Params.Method = 2
             self.model.Params.BarHomogeneous = 1
             print("✓ Model parameters configured")
-            
+
             self._create_variables()
             print("✓ Decision variables created")
-            
+
             self._add_constraints()
             print("✓ Constraints added")
 
             self._set_objective()
             print("✓ Objective function set")
-            
+
             print("\n2. Starting optimization...")
             self.model.optimize()
-            
+
             if self.model.Status == GRB.OPTIMAL:
-                print("\n3. Processing optimal solution...")
+                # Calculate verified coverage values
+                normalized_weights = self.demand_points['weight'] / self.demand_points['weight'].sum()
+                verified_l2_coverage = sum(
+                    self.variables['coverage_l2'][i].X * normalized_weights.iloc[i]
+                    for i in range(self.n_demand_points)
+                )
                 
+                verified_l3_coverage = sum(
+                    self.variables['coverage_l3'][i].X * normalized_weights.iloc[i]
+                    for i in range(self.n_demand_points)
+                )
+                
+                # Store verified values to use in solution
+                self.verified_coverage = {
+                    'initial': {
+                        'l2_coverage': float(self._calculate_coverage_percentage(self.initial_coverage['l2'])),
+                        'l3_coverage': float(self._calculate_coverage_percentage(self.initial_coverage['l3']))
+                    },
+                    'final': {
+                        'l2_coverage': float(verified_l2_coverage),
+                        'l3_coverage': float(verified_l3_coverage)
+                    }
+                }
+
+                print("\n3. Processing optimal solution...")
+
                 # Get decision variable values
                 upgrades = [i for i in range(len(self.existing_l2)) 
                           if i < len(self.variables['upgrade']) 
                           and self.variables['upgrade'][i].X > 0.5]
                 print(f"✓ Found {len(upgrades)} L2 -> L3 upgrades!")
-                
+
                 new_l2_stations = [i for i in range(len(self.potential_sites))
                                  if i < len(self.variables['new_l2_station'])
                                  and self.variables['new_l2_station'][i].X > 0.5]
@@ -122,7 +146,7 @@ class EVNetworkOptimizer:
                                  if i < len(self.variables['new_l3_station'])
                                  and self.variables['new_l3_station'][i].X > 0.5]
                 print(f"✓ Found {len(new_l3_stations)} new L3 stations!")
-                
+
                 # Create base solution structure
                 base_solution = {
                     'upgrades': upgrades,
@@ -131,13 +155,12 @@ class EVNetworkOptimizer:
                         'l3': new_l3_stations
                     }
                 }
-                
-                # Calculate costs and coverage
+
+                # Calculate costs
                 costs = self._calculate_solution_costs(base_solution)
-                coverage = self._calculate_coverage_metrics()
-                
+
                 print("\n4. Creating detailed solution...")
-                
+
                 # Update stations with detailed information
                 detailed_stations = self.update_station_statuses(base_solution)
                 print("✓ Station statuses updated")
@@ -149,7 +172,7 @@ class EVNetworkOptimizer:
                     'new_stations': base_solution['new_stations'],
                     'stations': detailed_stations,
                     'costs': costs,
-                    'coverage': coverage,
+                    'coverage': self.verified_coverage,
                     'metadata': {
                         'timestamp': datetime.now().isoformat(),
                         'total_stations': len(self.stations_df),
@@ -160,21 +183,21 @@ class EVNetworkOptimizer:
                         'new_l3_count': len(new_l3_stations)
                     }
                 }
-                
+
                 print("✓ Solution creation complete!")
                 return solution
-                
+
         except Exception as e:
             print(f"\nOptimization error: {str(e)}")
             return {
                 'status': 'error',
                 'message': str(e)
             }
-    
+
     # ----------------
     # Model Building Methods
     # ----------------
-    
+
     def _create_variables(self):
         """Create optimization variables."""
         # Station type decisions
@@ -214,16 +237,16 @@ class EVNetworkOptimizer:
             self.demand_points['weight'].iloc[i]
             for i in range(len(self.demand_points))
         )
-        
+
         l2_coverage = gp.quicksum(
             self.variables['coverage_l2'][i] * 
             self.demand_points['weight'].iloc[i]
             for i in range(len(self.demand_points))
         )
-        
+
         # Cost component from budget constraints
         total_cost = self._calculate_total_cost_expr()
-        
+
         # Multi-objective function
         self.model.setObjective(
             self.weights['l3_coverage'] * l3_coverage +
@@ -231,7 +254,7 @@ class EVNetworkOptimizer:
             self.weights['cost'] * total_cost,
             GRB.MAXIMIZE
         )
-    
+
     # ----------------
     # Constraint Methods
     # ----------------
@@ -249,7 +272,7 @@ class EVNetworkOptimizer:
     def _add_budget_constraints(self):
         """Add budget constraints including costs and resale revenue."""
         total_cost = self._calculate_total_cost_expr()
-        
+
         # Net cost must be within budget
         self.model.addConstr(
             total_cost <= self.budget,
@@ -278,13 +301,13 @@ class EVNetworkOptimizer:
             (self.costs['l2_station'] + self.infrastructure['min_ports_per_l2'] * self.costs['l2_port'])
             for i in range(self.n_potential_sites)
         )
-        
+
         new_l3_costs = gp.quicksum(
             self.variables['new_l3_station'][i] * 
             (self.costs['l3_station'] + self.infrastructure['min_ports_per_l3'] * self.costs['l3_port'])
             for i in range(self.n_potential_sites)
         )
-        
+
         # Upgrade costs - use existing L2 station indices directly
         upgrade_costs = gp.quicksum(
             self.variables['upgrade'][i] * (
@@ -295,89 +318,83 @@ class EVNetworkOptimizer:
             )
             for i in range(self.n_existing_l2)
         )
-        
+
         return new_l2_costs + new_l3_costs + upgrade_costs
 
     def _add_coverage_constraints(self):
-        """Add coverage constraints considering both station types and their ports."""
+        """Add coverage constraints considering both L2 and L3 ports."""
         try:
             # Get initial coverage
             initial_coverage = self.initial_coverage
             
+            # Normalize weights
+            weights = self.demand_points['weight'].values
+            normalized_weights = weights / np.sum(weights)
+            
             # Process each demand point
             for i in range(self.n_demand_points):
-                # Initial coverage contribution
-                if initial_coverage['l2'][i] > 0:
-                    self.model.addConstr(
-                        self.variables['coverage_l2'][i] >= initial_coverage['l2'][i],
-                        name=f"initial_l2_coverage_{i}"
-                    )
+                weight_i = normalized_weights[i]
                 
-                if initial_coverage['l3'][i] > 0:
-                    # L3 stations contribute to both L2 and L3 coverage
-                    self.model.addConstr(
-                        self.variables['coverage_l2'][i] >= initial_coverage['l3'][i],
-                        name=f"initial_l3_to_l2_coverage_{i}"
-                    )
-                    self.model.addConstr(
-                        self.variables['coverage_l3'][i] >= initial_coverage['l3'][i],
-                        name=f"initial_l3_coverage_{i}"
-                    )
-                
-                # New coverage from potential sites
+                # L2 Coverage:
                 nearby_l2 = [
                     j for j in range(self.n_potential_sites)
                     if self.distances[j, i] <= self.coverage['l2_radius']
                 ]
                 
-                if nearby_l2:
-                    # L2 coverage from both L2 and L3 stations
+                existing_l2_nearby = [
+                    j for j in range(len(self.existing_l2))
+                    if haversine(
+                        (self.demand_points.iloc[i]['latitude'], 
+                        self.demand_points.iloc[i]['longitude']),
+                        (self.existing_l2.iloc[j]['latitude'],
+                        self.existing_l2.iloc[j]['longitude'])
+                    ) <= self.coverage['l2_radius']
+                ]
+                
+                if nearby_l2 or existing_l2_nearby:
                     self.model.addConstr(
                         self.variables['coverage_l2'][i] <= (
                             initial_coverage['l2'][i] +  # Initial L2 coverage
-                            initial_coverage['l3'][i] +  # Initial L3 coverage
-                            gp.quicksum(
-                                self.variables['new_l2_station'][j] +  # New L2 stations
-                                self.variables['new_l3_station'][j]    # New L3 stations
-                                for j in nearby_l2
-                            )
+                            gp.quicksum(self.variables['new_l2_station'][j]
+                                    for j in nearby_l2) +  # New L2 stations
+                            gp.quicksum(1 - self.variables['upgrade'][j]  # Keep L2 coverage unless upgraded
+                                    for j in existing_l2_nearby)
                         ),
-                        name=f"new_l2_coverage_{i}"
+                        name=f"l2_coverage_{i}"
                     )
                 
-                # L3 coverage from new L3 stations and upgrades
+                # L3 Coverage (similar changes):
                 nearby_l3 = [
                     j for j in range(self.n_potential_sites)
                     if self.distances[j, i] <= self.coverage['l3_radius']
                 ]
                 
-                if nearby_l3:
-                    existing_l2_nearby = [
-                        j for j in range(len(self.existing_l2))
-                        if haversine(
-                            (self.demand_points.iloc[i]['latitude'], 
-                            self.demand_points.iloc[i]['longitude']),
-                            (self.existing_l2.iloc[j]['latitude'],
-                            self.existing_l2.iloc[j]['longitude'])
-                        ) <= self.coverage['l3_radius']
-                    ]
-                    
+                existing_l2_nearby_l3 = [
+                    j for j in range(len(self.existing_l2))
+                    if haversine(
+                        (self.demand_points.iloc[i]['latitude'], 
+                        self.demand_points.iloc[i]['longitude']),
+                        (self.existing_l2.iloc[j]['latitude'],
+                        self.existing_l2.iloc[j]['longitude'])
+                    ) <= self.coverage['l3_radius']
+                ]
+                
+                if nearby_l3 or existing_l2_nearby_l3:
                     self.model.addConstr(
                         self.variables['coverage_l3'][i] <= (
                             initial_coverage['l3'][i] +  # Initial L3 coverage
-                            gp.quicksum(self.variables['new_l3_station'][j] 
+                            gp.quicksum(self.variables['new_l3_station'][j]
                                     for j in nearby_l3) +  # New L3 stations
-                            gp.quicksum(self.variables['upgrade'][j] 
-                                    for j in existing_l2_nearby)  # Upgrades to L3
+                            gp.quicksum(self.variables['upgrade'][j]
+                                    for j in existing_l2_nearby_l3)  # Upgraded L2 to L3
                         ),
                         name=f"l3_coverage_{i}"
                     )
             
-            # Minimum coverage requirements
+            # Global coverage constraints with normalized weights
             self.model.addConstr(
                 gp.quicksum(
-                    self.variables['coverage_l2'][i] * 
-                    self.demand_points['weight'].iloc[i]
+                    self.variables['coverage_l2'][i] * normalized_weights[i]
                     for i in range(self.n_demand_points)
                 ) >= self.coverage['min_coverage_l2'],
                 name="min_l2_coverage"
@@ -385,11 +402,16 @@ class EVNetworkOptimizer:
             
             self.model.addConstr(
                 gp.quicksum(
-                    self.variables['coverage_l3'][i] * 
-                    self.demand_points['weight'].iloc[i]
+                    self.variables['coverage_l3'][i] * normalized_weights[i]
                     for i in range(self.n_demand_points)
                 ) >= self.coverage['min_coverage_l3'],
                 name="min_l3_coverage"
+            )
+            
+            # Add debugging constraints
+            self.model.addConstr(
+                gp.quicksum(normalized_weights) == 1,
+                name="weight_normalization_check"
             )
             
         except Exception as e:
@@ -405,19 +427,19 @@ class EVNetworkOptimizer:
                 self.infrastructure['min_ports_per_l2'] * 
                 self.infrastructure['l2_power']
             )
-            
+
             l3_power = (
                 self.variables['new_l3_station'][i] * 
                 self.infrastructure['min_ports_per_l3'] * 
                 self.infrastructure['l3_power']
             )
-            
+
             # Total power must not exceed grid capacity
             self.model.addConstr(
                 l2_power + l3_power <= self.infrastructure['grid_capacity'],
                 name=f"new_grid_capacity_{i}"
             )
-        
+
         for i in range(self.n_existing_l2):
             # Calculate power demand for upgrades
             l3_power = (
@@ -425,7 +447,7 @@ class EVNetworkOptimizer:
                 (self.infrastructure['min_ports_per_l3'] * self.infrastructure['l3_power']
                 + self.existing_l2.iloc[i]['num_chargers'] * self.infrastructure['l2_power'])
             )
-            
+
             # Total power must not exceed grid capacity
             self.model.addConstr(
                 l3_power <= self.infrastructure['grid_capacity'],
@@ -436,27 +458,13 @@ class EVNetworkOptimizer:
     # Calculation and Support Methods
     # ----------------
     def _calculate_initial_coverage(self) -> Dict[str, np.ndarray]:
-        """
-        Calculate initial coverage matrix considering both L2 and L3 ports.
-        
-        Accounts for:
-        - Existing L2 and L3 station coverage
-        - Port-based service capacity
-        - Population distribution
-        - Retained L2 port contribution at upgraded stations
-        
-        Returns:
-            Dict with coverage arrays for both L2 and L3
-        """
-
+        """Calculate initial coverage matrix considering both L2 and L3 ports."""
         try:
-            # Initialize coverage arrays
             coverage = {
                 'l2': np.zeros(self.n_demand_points),
                 'l3': np.zeros(self.n_demand_points)
             }
             
-            # Process each demand point
             for idx in range(self.n_demand_points):
                 demand_point = self.demand_points.iloc[idx]
                 demand_coords = (
@@ -468,42 +476,37 @@ class EVNetworkOptimizer:
                 if any(x == 0.0 for x in demand_coords):
                     continue
                 
-                # Check existing L2 stations for L2 coverage
+                # Check L2 coverage from L2 stations
                 for _, station in self.existing_l2.iterrows():
                     station_coords = (
                         self._safe_float(station['latitude']),
                         self._safe_float(station['longitude'])
                     )
                     
-                    # Skip invalid station coordinates
                     if any(x == 0.0 for x in station_coords):
                         continue
                         
                     dist = haversine(demand_coords, station_coords)
-                    if dist <= self.coverage['l2_radius']:
+                    if (dist <= self.coverage['l2_radius'] and 
+                        station['num_chargers'] > 0):
                         coverage['l2'][idx] = 1
-                        break  # Point is covered by L2
+                        break
                 
-                # Check existing L3 stations for both L2 and L3 coverage
+                # Check L3 coverage from L3 stations
                 for _, station in self.existing_l3.iterrows():
                     station_coords = (
                         self._safe_float(station['latitude']),
                         self._safe_float(station['longitude'])
                     )
                     
-                    # Skip invalid station coordinates
                     if any(x == 0.0 for x in station_coords):
                         continue
                     
                     dist = haversine(demand_coords, station_coords)
-                    
-                    # L3 stations provide both L2 and L3 coverage within respective radii
-                    if dist <= self.coverage['l2_radius']:
-                        coverage['l2'][idx] = 1
-                    if dist <= self.coverage['l3_radius']:
+                    if (dist <= self.coverage['l3_radius'] and 
+                        station['num_chargers'] > 0):
                         coverage['l3'][idx] = 1
-                    if coverage['l2'][idx] and coverage['l3'][idx]:
-                        break  # Point has both types of coverage
+                        break
             
             return coverage
             
@@ -513,25 +516,127 @@ class EVNetworkOptimizer:
                     'l3': np.zeros(self.n_demand_points)}
 
     def _calculate_coverage_metrics(self) -> Dict[str, Dict[str, float]]:
-        """Calculate coverage metrics considering port-based coverage."""
+        """Calculate weighted coverage metrics for L2 and L3 charging."""
         try:
-            # Get initial coverage
-            initial_l2 = self._calculate_coverage_percentage(self.initial_coverage['l2'])
-            initial_l3 = self._calculate_coverage_percentage(self.initial_coverage['l3'])
-
-            # Get final coverage from model variables
-            final_l2_matrix = np.array([
-                self.variables['coverage_l2'][i].X 
-                for i in range(self.n_demand_points)
-            ])
-            final_l3_matrix = np.array([
-                self.variables['coverage_l3'][i].X 
-                for i in range(self.n_demand_points)
-            ])
-
-            final_l2 = self._calculate_coverage_percentage(final_l2_matrix)
-            final_l3 = self._calculate_coverage_percentage(final_l3_matrix)
+            # Get initial coverage with consistent calculation
+            initial_l2_matrix = self.initial_coverage['l2']
+            initial_l3_matrix = self.initial_coverage['l3']
             
+            # Calculate final coverage matrix for each demand point
+            final_l2_matrix = np.zeros(self.n_demand_points)
+            final_l3_matrix = np.zeros(self.n_demand_points)
+            
+            # Use normalized weights consistently
+            weights = self.demand_points['weight'].values
+            normalized_weights = weights / np.sum(weights)
+
+            # Process each demand point
+            for i in range(self.n_demand_points):
+                demand_point = self.demand_points.iloc[i]
+                demand_coords = (
+                    self._safe_float(demand_point['latitude']),
+                    self._safe_float(demand_point['longitude'])
+                )
+
+                # Skip invalid coordinates
+                if any(x == 0.0 for x in demand_coords):
+                    continue
+
+                # L2 Coverage:
+                # 1. From existing L2 stations (both upgraded and non-upgraded)
+                for idx, station in self.existing_l2.iterrows():
+                    # For upgraded stations, they still contribute to L2 coverage
+                    station_coords = (
+                        self._safe_float(station['latitude']),
+                        self._safe_float(station['longitude'])
+                    )
+                    
+                    if any(x == 0.0 for x in station_coords):
+                        continue
+                        
+                    dist = haversine(demand_coords, station_coords)
+                    if dist <= self.coverage['l2_radius']:
+                        final_l2_matrix[i] = 1
+                        break
+
+                # 2. From new L2 stations
+                if final_l2_matrix[i] == 0:  # Only check if not already covered
+                    for j in range(self.n_potential_sites):
+                        if self.variables['new_l2_station'][j].X > 0.5:
+                            site = self.potential_sites.iloc[j]
+                            site_coords = (
+                                self._safe_float(site['latitude']),
+                                self._safe_float(site['longitude'])
+                            )
+                            
+                            if any(x == 0.0 for x in site_coords):
+                                continue
+                                
+                            dist = haversine(demand_coords, site_coords)
+                            if dist <= self.coverage['l2_radius']:
+                                final_l2_matrix[i] = 1
+                                break
+
+                # L3 Coverage:
+                # 1. From existing L3 stations
+                for _, station in self.existing_l3.iterrows():
+                    station_coords = (
+                        self._safe_float(station['latitude']),
+                        self._safe_float(station['longitude'])
+                    )
+                    
+                    if any(x == 0.0 for x in station_coords):
+                        continue
+                        
+                    dist = haversine(demand_coords, station_coords)
+                    if dist <= self.coverage['l3_radius']:
+                        final_l3_matrix[i] = 1
+                        break
+
+                # 2. From new L3 stations and upgrades
+                if final_l3_matrix[i] == 0:  # Only check if not already covered
+                    # New L3 stations
+                    for j in range(self.n_potential_sites):
+                        if self.variables['new_l3_station'][j].X > 0.5:
+                            site = self.potential_sites.iloc[j]
+                            site_coords = (
+                                self._safe_float(site['latitude']),
+                                self._safe_float(site['longitude'])
+                            )
+                            
+                            if any(x == 0.0 for x in site_coords):
+                                continue
+                                
+                            dist = haversine(demand_coords, site_coords)
+                            if dist <= self.coverage['l3_radius']:
+                                final_l3_matrix[i] = 1
+                                break
+
+                    # Upgraded L2 to L3 stations
+                    if final_l3_matrix[i] == 0:  # Still not covered
+                        for idx, station in self.existing_l2.iterrows():
+                            if (idx < len(self.variables['upgrade']) and 
+                                self.variables['upgrade'][idx].X > 0.5):
+                                station_coords = (
+                                    self._safe_float(station['latitude']),
+                                    self._safe_float(station['longitude'])
+                                )
+                                
+                                if any(x == 0.0 for x in station_coords):
+                                    continue
+                                    
+                                dist = haversine(demand_coords, station_coords)
+                                if dist <= self.coverage['l3_radius']:
+                                    final_l3_matrix[i] = 1
+                                    break
+
+            # Calculate coverage percentages using normalized weights
+            initial_l2 = np.sum(initial_l2_matrix * normalized_weights)
+            initial_l3 = np.sum(initial_l3_matrix * normalized_weights)
+            final_l2 = np.sum(final_l2_matrix * normalized_weights)
+            final_l3 = np.sum(final_l3_matrix * normalized_weights)
+            
+            # Convert to percentages
             return {
                 'initial': {
                     'l2_coverage': float(initial_l2),
@@ -542,31 +647,25 @@ class EVNetworkOptimizer:
                     'l3_coverage': float(final_l3)
                 }
             }
-                
+
         except Exception as e:
             self.logger.error(f"Error calculating coverage metrics: {str(e)}")
-            return {
-                'initial': {'l2_coverage': 0.0, 'l3_coverage': 0.0},
-                'final': {'l2_coverage': 0.0, 'l3_coverage': 0.0}
-            }
-    
+            raise
+
     def _calculate_coverage_percentage(self, coverage_matrix: np.ndarray) -> float:
-        """Calculate weighted coverage percentage from coverage matrix."""
-        if coverage_matrix is None or len(self.demand_points) == 0:
-            return 0.0
-            
+        """Calculate weighted coverage percentage considering demand point weights."""
         try:
-            weighted_sum = sum(
-                self._safe_float(coverage_matrix[i], 0.0) * 
-                self._safe_float(self.demand_points['weight'].iloc[i], 0.0)
-                for i in range(len(self.demand_points))
-            )
-            total_weight = sum(
-                self._safe_float(self.demand_points['weight'].iloc[i], 0.0)
-                for i in range(len(self.demand_points))
-            )
+            if coverage_matrix is None or len(self.demand_points) == 0:
+                return 0.0
+                
+            # Ensure weights sum to 1
+            weights = self.demand_points['weight'].values
+            normalized_weights = weights / np.sum(weights)
             
-            return weighted_sum / total_weight if total_weight > 0 else 0.0
+            # Calculate weighted coverage
+            weighted_coverage = np.sum(coverage_matrix * normalized_weights)
+            
+            return weighted_coverage
             
         except Exception as e:
             self.logger.error(f"Error in coverage calculation: {str(e)}")
@@ -581,23 +680,23 @@ class EVNetworkOptimizer:
                 self.infrastructure['min_ports_per_l3']
             ) if pd.notna(station['num_chargers']) else 0
             return l2_ports_sold
-            
+
         except Exception as e:
             self.logger.error(f"Error calculating port sale count: {str(e)}")
             return 0
-    
+
     def _calculate_solution_costs(self, solution: Dict) -> Dict[str, Any]:
         """Calculate detailed cost breakdown for solution with exact integer arithmetic."""
         try:
             # Initialize counts and resale tracking
             l2_resale_ports = 0  # Track total L2 ports being resold from upgrades
-            
+
             # For existing stations being upgraded, calculate total L2 ports being replaced
             for upgrade_idx in solution['upgrades']:
                 if upgrade_idx < len(self.existing_l2):
                     station = self.existing_l2.iloc[upgrade_idx]
                     l2_resale_ports += self._calculate_port_sale_count(station)
-            
+
             # Calculate new infrastructure costs
             costs = {
                 'new_infrastructure': {
@@ -638,19 +737,19 @@ class EVNetworkOptimizer:
                     }
                 }
             }
-            
+
             # Calculate summary totals
             total_purchase = sum(item['cost'] for item in costs['new_infrastructure'].values())
             total_revenue = sum(item['revenue'] for item in costs['resale_revenue'].values())
-            
+
             costs['summary'] = {
                 'total_purchase': total_purchase,
                 'total_revenue': total_revenue,
                 'net_cost': total_purchase - total_revenue
             }
-            
+
             return costs
-            
+
         except Exception as e:
             self.logger.error(f"Error calculating costs: {str(e)}")
             raise
@@ -663,11 +762,11 @@ class EVNetworkOptimizer:
             return float(value)
         except (TypeError, ValueError):
             return default
-    
+
     # ----------------
     # Station Status Update Methods
     # ----------------
-    
+
     def update_station_statuses(self, solution: Dict) -> dict:
         """
         Update station statuses with rich metadata and port tracking.
@@ -687,17 +786,17 @@ class EVNetworkOptimizer:
         """
 
         stations = self.stations_df.copy()
-        
+
         # Initialize status for all stations
         stations['status'] = 'Existing L2'
         stations.loc[stations['charger_type'] == 'Level 3', 'status'] = 'Existing L3'
-        
+
         detailed_stations = {
             'existing': [],
             'upgrades': [],
             'new': []
         }
-        
+
         # 1. Process all existing stations, skipping those that will be upgraded
         upgrade_indices = [self.existing_l2.iloc[i].name for i in solution['upgrades']]
         for idx, station in stations.iterrows():
@@ -705,10 +804,10 @@ class EVNetworkOptimizer:
                 # Skip stations that will be upgraded
                 if station['charger_type'] == 'Level 2' and idx in upgrade_indices:
                     continue
-                    
+
                 # Get the actual number of ports, defaulting to 0 if unknown
                 num_chargers = int(station['num_chargers']) if pd.notna(station['num_chargers']) else 0
-                
+
                 # Initialize both initial and final port counts
                 initial_ports = {
                     'level_2': num_chargers if station['charger_type'] == 'Level 2' else 0,
@@ -740,9 +839,9 @@ class EVNetworkOptimizer:
                     },
                     'operator': str(station.get('operator', 'Unknown'))
                 }
-                
+
                 detailed_stations['existing'].append(existing_station)
-                
+
             except Exception as e:
                 self.logger.error(f"Error processing existing station {idx}: {str(e)}")
                 continue
@@ -753,11 +852,11 @@ class EVNetworkOptimizer:
                 # Get the original station that's being upgraded
                 original_station = self.existing_l2.iloc[upgrade_idx]
                 current_ports = int(original_station['num_chargers']) if pd.notna(original_station['num_chargers']) else 0
-                
+
                 # Calculate ports to keep and sell
                 l2_ports_sold = self._calculate_port_sale_count(original_station)
                 l2_ports_kept = current_ports - l2_ports_sold
-                
+
                 upgrade_data = {
                     'id': f'upgrade_{upgrade_idx}',
                     'name': f"Upgraded L3 Station",
@@ -800,7 +899,7 @@ class EVNetworkOptimizer:
                     }
                 }
                 detailed_stations['upgrades'].append(upgrade_data)
-                    
+
             except Exception as e:
                 self.logger.error(f"Error processing upgrade {upgrade_idx}: {str(e)}")
                 continue
@@ -810,12 +909,12 @@ class EVNetworkOptimizer:
             for site_idx in solution['new_stations'].get(site_type, []):
                 try:
                     site = self.potential_sites.iloc[site_idx]
-                    
+
                     # Set parameters based on station type
                     charger_type = 'Level 2' if site_type == 'l2' else 'Level 3'
                     min_ports = (self.infrastructure['min_ports_per_l2'] if site_type == 'l2' 
                                 else self.infrastructure['min_ports_per_l3'])
-                    
+
                     new_station = {
                         'id': f'new_{site_type.upper()}_{site_idx}',
                         'name': f"New {site_type.upper()} Station",
@@ -861,13 +960,13 @@ class EVNetworkOptimizer:
                         }
                     }
                     detailed_stations['new'].append(new_station)
-                        
+
                 except Exception as e:
                     self.logger.error(f"Error processing new {site_type} station {site_idx}: {str(e)}")
                     continue
-        
+
         return detailed_stations
-    
+
     # ----------------
     # Utility Methods
     # ----------------
@@ -895,7 +994,7 @@ class EVNetworkOptimizer:
         # Get current and new power requirements per port
         current_power = self._get_power_output(current_type)['kw']
         new_power = self._get_power_output(new_type)['kw']
-        
+
         # Calculate total power increase
         return (new_power * new_ports) - current_power
 
@@ -918,21 +1017,21 @@ class EVNetworkOptimizer:
 
         power_per_port = self._get_power_output(charger_type)['kw']
         return power_per_port * num_ports
-    
+
     def _get_site_preparation_requirements(self, site: pd.Series) -> Dict[str, Any]:
         """
         Determine site preparation requirements including port modifications.
-        
+
         Assesses:
         - Existing port infrastructure
         - Required modifications for retention/upgrade
         - Grid capacity needs
         - Installation requirements
         - Space utilization considerations
-        
+
         Args:
             site: Site data series
-            
+
         Returns:
             Dict of preparation requirements
         """
@@ -961,7 +1060,7 @@ class EVNetworkOptimizer:
                 'surface_work': 'Minimal',
                 'existing_electrical': 'Likely Available'
             })
-        
+
         return base_requirements
 
     def _calculate_upgrade_cost(self, upgrade_idx: int) -> float:
@@ -985,21 +1084,21 @@ class EVNetworkOptimizer:
             # Get current L2 ports from the station being upgraded
             station = self.existing_l2.iloc[upgrade_idx]
             current_l2_ports = int(station['num_chargers']) if pd.notna(station['num_chargers']) else 0
-            
+
             # Calculate new costs
             new_l3_cost = (
                 self.costs['l3_station'] +  # Base station cost
                 self.infrastructure['min_ports_per_l3'] * self.costs['l3_port']  # New L3 ports
             )
-            
+
             # Calculate resale value of existing equipment
             resale_value = (
                 self.costs['l2_station'] +  # Base station
                 current_l2_ports * self.costs['l2_port']  # Existing ports
             ) * self.costs['resale_factor']
-            
+
             return new_l3_cost - resale_value
-            
+
         except Exception as e:
             self.logger.error(f"Error calculating upgrade cost: {str(e)}")
             return 0.0
@@ -1018,7 +1117,7 @@ class EVNetworkOptimizer:
                     self.infrastructure['min_ports_per_l3'] * self.costs['l3_port']
                 )
             return 0.0
-            
+
         except Exception as e:
             self.logger.error(f"Error calculating installation cost: {str(e)}")
             return 0.0
@@ -1026,28 +1125,28 @@ class EVNetworkOptimizer:
     # ----------------
     # Sensitivity Analysis Methods
     # ----------------
-    
+
     def perform_sensitivity_analysis(self, display: bool = False) -> Dict[str, Any]:
         """
         Perform sensitivity analysis on key model parameters and constraints.
-        
+
         Analyzes:
         - Impact of port retention requirements
         - Coverage vs cost tradeoffs
         - Grid capacity utilization
         - Budget constraint effects
         - Implementation phasing sensitivities
-        
+
         Args:
             display: Whether to display results
-            
+
         Returns:
             Dict containing sensitivity analysis results
         """
-        
+
         if self.model.Status != GRB.OPTIMAL:
             raise ValueError("Model must be solved optimally before performing sensitivity analysis.")
-        
+
         sensitivity_results = {
             'constraints': self._analyze_constraints_via_slack_and_utilization(),
             'variables': self._analyze_variable_reduced_costs(),
@@ -1077,7 +1176,7 @@ class EVNetworkOptimizer:
                     utilization = ((rhs - slack) / rhs) * 100
                 else:
                     utilization = 100.0 if slack == 0 else 0.0
-                
+
                 results[name] = {
                     'slack': float(slack),
                     'rhs': float(rhs),
@@ -1089,7 +1188,7 @@ class EVNetworkOptimizer:
     def _analyze_variable_reduced_costs(self) -> Dict[str, Any]:
         """Analyze variables that affect the solution most significantly."""
         variable_analysis = []
-        
+
         # Look at all variables with non-zero values or significant reduced costs
         for var in self.model.getVars():
             if var.X > 0.5:  # For binary variables, check if they're selected
@@ -1110,7 +1209,7 @@ class EVNetworkOptimizer:
     def _generate_insights(self) -> List[str]:
         """Generate actionable insights based on analysis."""
         insights = []
-        
+
         # Budget constraint analysis
         budget_stats = self._analyze_constraints_via_slack_and_utilization().get('Budget', {})
         if budget_stats.get('utilization', 0) > 95:
@@ -1121,24 +1220,24 @@ class EVNetworkOptimizer:
         # Coverage analysis
         l2_stats = self._analyze_constraints_via_slack_and_utilization().get('L2 Coverage', {})
         l3_stats = self._analyze_constraints_via_slack_and_utilization().get('L3 Coverage', {})
-        
+
         if l2_stats and l3_stats:
             l2_util = l2_stats.get('utilization', 0)
             l3_util = l3_stats.get('utilization', 0)
-            
+
             if abs(l2_util - l3_util) > 20:
                 insights.append(
                     f"Large disparity between L2 ({l2_util:.1f}%) and L3 ({l3_util:.1f}%) "
                     f"coverage - consider rebalancing network."
                 )
-            
+
             if l2_stats.get('status') == "Binding":
                 insights.append(f"L2 coverage constraint is binding at {l2_util:.1f}%")
             if l3_stats.get('status') == "Binding":
                 insights.append(f"L3 coverage constraint is binding at {l3_util:.1f}%")
-        
+
         return insights
-    
+
     # ----------------
     # Program Documentation
     # ----------------
@@ -1239,7 +1338,7 @@ class EVNetworkOptimizer:
                     }
                 }
             },
-            
+
             "decision_variables": {
                 "new_l2_stations": {
                     "type": "Binary",
@@ -1267,7 +1366,7 @@ class EVNetworkOptimizer:
                     "description": "1 if demand point i is covered by L3 station"
                 }
             },
-            
+
             "constraints": {
                 "budget": {
                     "type": "Linear",
@@ -1277,12 +1376,12 @@ class EVNetworkOptimizer:
                 "l2_coverage": {
                     "type": "Linear",
                     "bound": self.coverage['min_coverage_l2'],
-                    "description": f"At least {self.coverage['min_coverage_l2']*100}% population within {self.coverage['l2_radius']}km of L2"
+                    "description": f"At least {self.coverage['min_coverage_l2']}% population within {self.coverage['l2_radius']}km of L2"
                 },
                 "l3_coverage": {
                     "type": "Linear",
                     "bound": self.coverage['min_coverage_l3'],
-                    "description": f"At least {self.coverage['min_coverage_l3']*100}% population within {self.coverage['l3_radius']}km of L3"
+                    "description": f"At least {self.coverage['min_coverage_l3']}% population within {self.coverage['l3_radius']}km of L3"
                 },
                 "grid_capacity": {
                     "type": "Linear",
@@ -1296,7 +1395,7 @@ class EVNetworkOptimizer:
                     f"Must keep minimum {self.infrastructure['min_ports_per_l2']} L2 ports at upgraded stations"
                 ]
             },
-            
+
             "objective": {
                 "type": "Multi-objective Linear",
                 "components": {
