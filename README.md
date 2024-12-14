@@ -625,10 +625,14 @@ The model employs a sophisticated port retention strategy during L2 to L3 upgrad
    - `requests`
    - `ratelimit`
    - `python-dotenv`
+   - `fastparquet`
 
 1. **Progress & Formatting**
    - `tqdm`
    - `tabulate`
+  
+1. **Jupyter Environment**
+   - `jupyter`
 
 ### 4.2. Installation
 
