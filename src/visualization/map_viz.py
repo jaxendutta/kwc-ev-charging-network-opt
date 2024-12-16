@@ -93,15 +93,19 @@ def add_legend_to_map(m: folium.Map, color_map: dict, counts: dict) -> folium.Ma
                                 font-size: 12px;">
     """
     
-    # Sort the location types by counts in ascending order
-    sorted_loc_types = sorted(counts.items(), key=lambda item: item[1], reverse=True)
+    # Sort types by counts and ensure all values are strings
+    sorted_types = sorted(
+        [(str(k), int(v)) for k, v in counts.items()],
+        key=lambda x: x[1],
+        reverse=True
+    )
     
-    for loc_type, count in sorted_loc_types:
-        color = color_map.get(loc_type, 'black')
-        legend_html += f"<p style='margin: 2px 0;'><span style='color: {color};'>●</span> {loc_type} <span style='color: grey;'>({count})</span></p>"
+    for loc_type, count in sorted_types:
+        color = str(color_map.get(loc_type, 'black'))
+        legend_html += f'<p style="margin: 2px 0;"><span style="color: {color};">●</span> {loc_type} <span style="color: grey;">({count})</span></p>'
     
     legend_html += "</div>"
-    m.get_root().html.add_child(Element(legend_html))
+    m.get_root().html.add_child(folium.Element(legend_html))
     
     return m
 

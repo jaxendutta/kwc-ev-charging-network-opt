@@ -251,7 +251,7 @@ def create_results_map(solution: Dict[str, Any],
     }
     
     # Create feature groups for different station types
-    layers = {status: folium.FeatureGroup(name=f'{status} Stations')
+    layers = {status: folium.FeatureGroup(name=str(status)+'Stations')
              for status in status_colors.keys()}
     
     # Initialize counts
@@ -267,7 +267,7 @@ def create_results_map(solution: Dict[str, Any],
             return f"{value:.8f}"
         return str(value)
     
-    def create_station_popup(station: Dict[str, Any], 
+    def create_station_popup(station_data: Dict[str, Any], 
                            status: str, 
                            implementation: Optional[Dict] = None) -> str:
         """
@@ -320,8 +320,40 @@ def create_results_map(solution: Dict[str, Any],
             }
         }
 
-        loc = station['location']
-        power = station['charging']['power_output']
+        loc = station_data['location']
+
+        station = {
+            'name': str(station_data.get('name', '')),
+            'status': str(status),
+            'location': {
+                'latitude': str(float(loc['latitude'])),
+                'longitude': str(float(loc['longitude'])),
+                'address': str(loc.get('address', '')),
+                'city': str(loc.get('city', '')),
+                'postal_code': str(loc.get('postal_code', ''))
+            },
+            'power': {
+                'kw': str(float(station_data['charging']['power_output']['kw'])),
+                'voltage': str(int(station_data['charging']['power_output']['voltage'])),
+                'charge_rate': str(station_data['charging']['power_output']['charge_rate'])
+            },
+            'charging': {
+                'charger_type': str(station_data['charging']['charger_type']),
+                'status': str(status),
+                'ports': {
+                    'initial': {
+                        'level_2': station_data['charging']['ports']['initial']['level_2'],
+                        'level_3': station_data['charging']['ports']['initial']['level_3']
+                    },
+                    'final': {
+                        'level_2': station_data['charging']['ports']['final']['level_2'],
+                        'level_3': station_data['charging']['ports']['final']['level_3']
+                    }
+                }
+            }
+        }
+
+        power = station['power']
         ports = station['charging']['ports']
         # If station['operator'] is not available, set operator to 'TBD'
         operator = station.get('operator', '[TBD]')
@@ -363,15 +395,15 @@ def create_results_map(solution: Dict[str, Any],
                     </tr>
                     <tr>
                         <td>Level 2</td>
-                        <td style="text-align: center;">{ports['initial']['level_2']}</td>
-                        <td style="text-align: center;">{ports['final']['level_2']}</td>
-                        <td style="text-align: center;">{ports['final']['level_2'] - ports['initial']['level_2']:+d}</td>
+                        <td style="text-align: center;">{str(ports['initial']['level_2'])}</td>
+                        <td style="text-align: center;">{str(ports['final']['level_2'])}</td>
+                        <td style="text-align: center;">{str(f"{ports['final']['level_2'] - ports['initial']['level_2']:+d}")}</td>
                     </tr>
                     <tr>
                         <td>Level 3</td>
-                        <td style="text-align: center;">{ports['initial']['level_3']}</td>
-                        <td style="text-align: center;">{ports['final']['level_3']}</td>
-                        <td style="text-align: center;">{ports['final']['level_3'] - ports['initial']['level_3']:+d}</td>
+                        <td style="text-align: center;">{str(ports['initial']['level_3'])}</td>
+                        <td style="text-align: center;">{str(ports['final']['level_3'])}</td>
+                        <td style="text-align: center;">{str(f"{ports['final']['level_3'] - ports['initial']['level_3']:+d}")}</td>
                     </tr>
                 </table>
             </div>
@@ -435,12 +467,12 @@ def create_results_map(solution: Dict[str, Any],
     # Process existing stations
     for station in solution['stations']['existing']:
         loc = station['location']
-        status = station['charging']['status']
+        status = str(station['charging']['status'])
         counts[status] += 1
         
         # Add coverage circle
-        coverage_radius = config['coverage']['l2_radius'] if station['charging']['charger_type'] == 'Level 2' else config['coverage']['l3_radius']
-        coverage_color = status_colors[status]
+        coverage_radius = float(config['coverage']['l2_radius'] if station['charging']['charger_type'] == 'Level 2' else config['coverage']['l3_radius'])
+        coverage_color = str(status_colors[status])
         
         folium.Circle(
             location=[float(loc['latitude']), float(loc['longitude'])],
@@ -448,7 +480,8 @@ def create_results_map(solution: Dict[str, Any],
             color=coverage_color,
             fill=True,
             opacity=0.1,
-            fillOpacity=0.05
+            fillOpacity=0.05,
+            popup=None
         ).add_to(coverage_l2 if station['charging']['charger_type'] == 'Level 2' else coverage_l3)
         
         # Add station marker
@@ -461,7 +494,7 @@ def create_results_map(solution: Dict[str, Any],
                 create_station_popup(station, status),
                 max_width=400
             ),
-            tooltip=f"{station['name']} ({status})"
+            tooltip=str(f"{station['name']} ({status})")
         ).add_to(layers[status])
 
     # Process upgrades
@@ -471,8 +504,8 @@ def create_results_map(solution: Dict[str, Any],
         counts[status] += 1
         
         # Add coverage circle
-        coverage_radius = config['coverage']['l3_radius']
-        coverage_color = status_colors[status]
+        coverage_radius = float(config['coverage']['l3_radius'])
+        coverage_color = str(status_colors[status])
         
         folium.Circle(
             location=[float(loc['latitude']), float(loc['longitude'])],
@@ -480,31 +513,32 @@ def create_results_map(solution: Dict[str, Any],
             color=coverage_color,
             fill=True,
             opacity=0.1,
-            fillOpacity=0.05
+            fillOpacity=0.05,
+            popup=None
         ).add_to(coverage_l3)
         
         # Add station marker
         folium.CircleMarker(
             location=[float(loc['latitude']), float(loc['longitude'])],
             radius=8,
-            color=status_colors[status],
+            color=str(status_colors[status]),
             fill=True,
             popup=folium.Popup(
                 create_station_popup(station, status),
                 max_width=400
             ),
-            tooltip=f"{station['name']} ({status})"
+            tooltip=str(f"{station['name']} ({status})")
         ).add_to(layers[status])
 
     # Process new stations
     for station in solution['stations']['new']:
         loc = station['location']
-        status = station['charging']['status']
+        status = str(station['charging']['status'])
         counts[status] += 1
         
         # Add coverage circle
-        coverage_radius = config['coverage']['l2_radius'] if station['charging']['charger_type'] == 'Level 2' else config['coverage']['l3_radius']
-        coverage_color = status_colors[status]
+        coverage_radius = float(config['coverage']['l2_radius'] if station['charging']['charger_type'] == 'Level 2' else config['coverage']['l3_radius'])
+        coverage_color = str(status_colors[status])
         
         folium.Circle(
             location=[float(loc['latitude']), float(loc['longitude'])],
@@ -512,20 +546,21 @@ def create_results_map(solution: Dict[str, Any],
             color=coverage_color,
             fill=True,
             opacity=0.1,
-            fillOpacity=0.05
+            fillOpacity=0.05,
+            popup=None
         ).add_to(coverage_l2 if station['charging']['charger_type'] == 'Level 2' else coverage_l3)
         
         # Add station marker
         folium.CircleMarker(
             location=[float(loc['latitude']), float(loc['longitude'])],
             radius=8,
-            color=status_colors[status],
+            color=str(status_colors[status]),
             fill=True,
             popup=folium.Popup(
                 create_station_popup(station, status),
                 max_width=400
             ),
-            tooltip=f"{station['name']} ({status})"
+            tooltip=str(f"{station['name']} ({status})")
         ).add_to(layers[status])
 
     # Add all layers to map in proper order
