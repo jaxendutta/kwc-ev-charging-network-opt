@@ -13,6 +13,7 @@ import logging
 from typing import Dict, Any
 from datetime import datetime
 from haversine import haversine
+from halo import Halo
 
 from src.data.utils import *
 from src.model.utils import *

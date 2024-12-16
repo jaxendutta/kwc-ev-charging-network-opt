@@ -71,7 +71,41 @@ def save_results(data, data_type, file_type, output_dir: Path) -> Path:
     # Save maps (in the form of HTML files)
     elif file_type == 'map':
         output_file = output_dir / f'{data_type}.html'
-        data.save(output_file)
+        try:
+            # Convert all float coordinates to strings first
+            for layer in data._children.values():
+                if hasattr(layer, 'location'):
+                    if isinstance(layer.location, list):
+                        layer.location = [float(x) for x in layer.location]
+                    elif isinstance(layer.location, (int, float)):
+                        layer.location = float(layer.location)
+            
+            # Force use of absolute path and convert to string
+            try:
+                data.save(str(output_file.absolute()))
+            except Exception:
+                # If direct save fails, try writing the HTML directly
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    html = data.get_root().render()
+                    f.write(html)
+                    
+            print(f"✓ Map saved to {output_file}")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not save map due to {str(e)}")
+            # Try alternative save method
+            try:
+                print("Attempting alternative save method...")
+                # Create temp file first
+                temp_file = output_dir / f'temp_{data_type}.html'
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    f.write(data._repr_html_())
+                # Then rename to final file
+                temp_file.rename(output_file)
+                print("✓ Map saved successfully using alternative method")
+            except Exception as e2:
+                print(f"❌ Error: Could not save map: {str(e2)}")
+                # Return a dummy file path - allows process to continue
+                return output_dir / f'{data_type}_error.html'
 
     # Save text data: program, solution, sensitivity
     elif file_type == 'txt':

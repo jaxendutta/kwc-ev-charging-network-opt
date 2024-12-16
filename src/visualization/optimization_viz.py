@@ -260,6 +260,12 @@ def create_results_map(solution: Dict[str, Any],
     # Add coverage visualization
     coverage_l2 = folium.FeatureGroup(name=f"L2 Coverage ({config['coverage']['l2_radius']}km)")
     coverage_l3 = folium.FeatureGroup(name=f"L3 Coverage ({config['coverage']['l3_radius']}km)")
+
+    def ensure_float_string(value):
+        """Ensure float values are properly stringified."""
+        if isinstance(value, float):
+            return f"{value:.8f}"
+        return str(value)
     
     def create_station_popup(station: Dict[str, Any], 
                            status: str, 
@@ -317,12 +323,22 @@ def create_results_map(solution: Dict[str, Any],
         loc = station['location']
         power = station['charging']['power_output']
         ports = station['charging']['ports']
+        # If station['operator'] is not available, set operator to 'TBD'
+        operator = station.get('operator', '[TBD]')
+
+        # Ensure all numeric values are properly stringified
+        lat = ensure_float_string(loc['latitude'])
+        lon = ensure_float_string(loc['longitude'])
         
         popup_html = f"""
         <div style="font-family: {styles['fonts']['main']}; max-width: {styles['width']}; gap: {styles['spacing']['gap']};">
             <h4 style="color: {styles['colors']['header']}; margin-bottom: {styles['spacing']['section']};">
                 {station['name']}
             </h4>
+
+            <div style="background: {styles['colors']['background']}; padding: {styles['spacing']['padding']}; margin: {styles['spacing']['margin']}; border-radius: {styles['spacing']['border-radius']};">
+                <h5 style="color: {styles['colors']['subheader']}; bottom: {styles['spacing']['header-bottom']};">Operated by <b>{operator}</b></h5>
+            </div>
             
             <!-- Status Section -->
             <div style="background: {styles['colors']['background']}; padding: {styles['spacing']['padding']}; margin: {styles['spacing']['margin']}; border-radius: {styles['spacing']['border-radius']};">
@@ -407,7 +423,7 @@ def create_results_map(solution: Dict[str, Any],
             {loc.get('city', 'Unknown City')}{f', {postal_code}' if postal_code != 'nan' else ''}
             </p>
             <p style="margin: {styles['spacing']['item']} 0; color: {styles['colors']['muted']};">
-            ({loc['latitude']:.6f}, {loc['longitude']:.6f})
+            ({lat}, {lon})
             </p>
             </div>
             """
@@ -427,7 +443,7 @@ def create_results_map(solution: Dict[str, Any],
         coverage_color = status_colors[status]
         
         folium.Circle(
-            location=[loc['latitude'], loc['longitude']],
+            location=[float(loc['latitude']), float(loc['longitude'])],
             radius=coverage_radius * 1000,  # Convert to meters
             color=coverage_color,
             fill=True,
@@ -437,7 +453,7 @@ def create_results_map(solution: Dict[str, Any],
         
         # Add station marker
         folium.CircleMarker(
-            location=[loc['latitude'], loc['longitude']],
+            location=[float(loc['latitude']), float(loc['longitude'])],
             radius=8,
             color=status_colors[status],
             fill=True,
@@ -459,7 +475,7 @@ def create_results_map(solution: Dict[str, Any],
         coverage_color = status_colors[status]
         
         folium.Circle(
-            location=[loc['latitude'], loc['longitude']],
+            location=[float(loc['latitude']), float(loc['longitude'])],
             radius=coverage_radius * 1000,
             color=coverage_color,
             fill=True,
@@ -469,7 +485,7 @@ def create_results_map(solution: Dict[str, Any],
         
         # Add station marker
         folium.CircleMarker(
-            location=[loc['latitude'], loc['longitude']],
+            location=[float(loc['latitude']), float(loc['longitude'])],
             radius=8,
             color=status_colors[status],
             fill=True,
@@ -491,7 +507,7 @@ def create_results_map(solution: Dict[str, Any],
         coverage_color = status_colors[status]
         
         folium.Circle(
-            location=[loc['latitude'], loc['longitude']],
+            location=[float(loc['latitude']), float(loc['longitude'])],
             radius=coverage_radius * 1000,
             color=coverage_color,
             fill=True,
@@ -501,7 +517,7 @@ def create_results_map(solution: Dict[str, Any],
         
         # Add station marker
         folium.CircleMarker(
-            location=[loc['latitude'], loc['longitude']],
+            location=[float(loc['latitude']), float(loc['longitude'])],
             radius=8,
             color=status_colors[status],
             fill=True,

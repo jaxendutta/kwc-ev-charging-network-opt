@@ -57,8 +57,8 @@ def check_virtual_env():
             print("\nTo set up a virtual environment in the project root on your system (Windows):")
             print(f"  cd {PROJECT_ROOT}")
             print("  python -m venv venv")
-            print("  .\\venv\\Scripts\\activate") # Intel-based (x86/x64)
-            print("  \\venv\\Scripts\\activate")  # ARM-based (ARM64)
+            print("  .\\venv\\Scripts\\activate  # Intel-based (x86/x64)")
+            print("  \\venv\\Scripts\\activate   # ARM-based (ARM64)")
             
         # Linux/MacOS instructions
         else:
