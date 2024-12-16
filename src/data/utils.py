@@ -21,6 +21,9 @@ get_file_timestamp = lambda x: datetime.fromtimestamp(Path(x).stat().st_mtime).s
 # Flatten the timestamp to file name format
 flatten_timestamp = lambda x: x.replace(' ', '_').replace(':', '-')
 
+# Delay message
+delay_message = lambda: print("⌛ This may take a few minutes. We apologize for the inconvenience.")
+
 # Get latest file in a directory
 def get_latest_file(directory, file_type=None):
     directory = Path(directory)

@@ -57,7 +57,8 @@ def check_virtual_env():
             print("\nTo set up a virtual environment in the project root on your system (Windows):")
             print(f"  cd {PROJECT_ROOT}")
             print("  python -m venv venv")
-            print("  .\\venv\\Scripts\\activate")
+            print("  .\\venv\\Scripts\\activate") # Intel-based (x86/x64)
+            print("  \\venv\\Scripts\\activate")  # ARM-based (ARM64)
             
         # Linux/MacOS instructions
         else:
@@ -271,6 +272,7 @@ def check_dependencies():
                                 spinner.fail(f"Failed to install {pkg_name}")
                             else:
                                 print(f"✗ Failed to install {pkg_name}")
+                            print("⚠️ Please run this script again to verify setup!")
                             return False
             
             print("\n✨ Successfully installed all missing packages!")

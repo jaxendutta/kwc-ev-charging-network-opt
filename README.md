@@ -48,19 +48,17 @@ A comprehensive mixed-integer linear programming (MILP) optimization model for s
       - [4.1.1 Prerequisites](#411-prerequisites)
       - [4.1.2. Core Dependencies](#412-core-dependencies)
     - [4.2. Installation](#42-installation)
-    - [4.3. Data Pipeline Execution](#43-data-pipeline-execution)
-      - [4.3.1. Data Collection](#431-data-collection)
-      - [4.3.2. Analysis Pipeline](#432-analysis-pipeline)
-    - [4.4. Model Configuration](#44-model-configuration)
-      - [4.4.1. Basic Configuration](#441-basic-configuration)
-      - [4.4.2. Scenario Configuration](#442-scenario-configuration)
-    - [4.5. Running the Optimization](#45-running-the-optimization)
-      - [4.5.1. Command Line Interface](#451-command-line-interface)
-      - [4.5.2 Output Structure](#452-output-structure)
-      - [4.5.3. Notebook Interface](#453-notebook-interface)
-    - [4.6. Results Analysis](#46-results-analysis)
-      - [4.6.1. Solution Visualization](#461-solution-visualization)
-      - [4.6.2. Performance Metrics](#462-performance-metrics)
+    - [4.3. Model Configuration](#43-model-configuration)
+      - [4.3.1. Basic Configuration](#431-basic-configuration)
+      - [4.3.2. Scenario Configuration](#432-scenario-configuration)
+    - [4.4. Quick Run on the Command Line Interface](#44-quick-run-on-the-command-line-interface)
+    - [4.5. Data Pipeline Execution](#45-data-pipeline-execution)
+      - [4.5.1. Data Collection](#451-data-collection)
+      - [4.5.2. Analysis Pipeline](#452-analysis-pipeline)
+    - [4.6. Running the Optimization](#46-running-the-optimization)
+    - [4.7. Results Analysis](#47-results-analysis)
+      - [4.7.1. Solution Visualization](#471-solution-visualization)
+      - [4.7.2. Performance Metrics](#472-performance-metrics)
   - [5. Project Structure \& Standards](#5-project-structure--standards)
     - [5.1. Directory Structure](#51-directory-structure)
     - [5.2. Code Standards](#52-code-standards)
@@ -605,6 +603,8 @@ The model employs a sophisticated port retention strategy during L2 to L3 upgrad
    - `numpy`
    - `pandas`
    - `scipy`
+   - `lxml`
+   - `scikit-learn`
 
 1. **Geospatial Analysis**
    - `geopandas`
@@ -620,6 +620,7 @@ The model employs a sophisticated port retention strategy during L2 to L3 upgrad
    - `matplotlib`
    - `folium`
    - `branca`
+   - `seaborn`
 
 1. **API & Network**
    - `requests`
@@ -670,27 +671,9 @@ The model employs a sophisticated port retention strategy during L2 to L3 upgrad
 
     The script provides interactive prompts and clear instructions if any setup steps fail or require user action. Follow the on-screen instructions to complete any missing setup requirements.
 
-### 4.3. Data Pipeline Execution
+### 4.3. Model Configuration
 
-> [!TIP]
-> If you want to run the optimization directly, you can skip to section [4.4](#44-model-configuration). The following content is just for visualizing the optimization steps and is not necessary to run the optimization script.
-
-#### 4.3.1. Data Collection
-```bash
-jupyter notebook notebooks/01_data_collection.ipynb
-```
-
-#### 4.3.2. Analysis Pipeline
-```bash
-# Execute notebooks in order:
-jupyter notebook notebooks/02_location_analysis.ipynb
-jupyter notebook notebooks/03_enhancement_analysis.ipynb
-jupyter notebook notebooks/04_data_preparation.ipynb
-```
-
-### 4.4. Model Configuration
-
-#### 4.4.1. Basic Configuration
+#### 4.3.1. Basic Configuration
 - Located in `configs/base.json`
 - Key parameters:
   - Cost factors
@@ -698,16 +681,20 @@ jupyter notebook notebooks/04_data_preparation.ipynb
   - Grid constraints
   - Implementation phases
 
-#### 4.4.2. Scenario Configuration
+#### 4.3.2. Scenario Configuration
 - Located in `configs/scenarios/`
 - Available scenarios:
   - `aggressive.json`
   - `balanced.json`
   - `conservative.json`
 
-### 4.5. Running the Optimization
+### 4.4. Quick Run on the Command Line Interface
 
-#### 4.5.1. Command Line Interface
+> [!NOTE]
+> This section is to run the optimization directly on the command line interface. If you would like to visualize and observe the data pipeline working its way through, you can skip to section [4.5.](#45-data-pipeline-execution). The following content is just for a quick run.
+
+For a quick run of the optimization model after setting up your cconfigurations in the `config\` directory, run the following script.
+
 ```bash
 # Basic run with default configuration
 python src/run_optimization.py
@@ -719,7 +706,8 @@ python src/run_optimization.py --scenario balanced
 python src/run_optimization.py --output custom_results
 ```
 
-#### 4.5.2 Output Structure
+If run successfully, you would get a results package with the following components.
+
 ```
 results/
   └── results_YYYYMMDD_HHMMSS/
@@ -744,26 +732,47 @@ results/
       └── solution_map.html
 ```
 
-#### 4.5.3. Notebook Interface
+If the run fails, the error message would be logged in the `optimization.log` file. If the file is empty, you have run the script successfully.
+
+### 4.5. Data Pipeline Execution
+
+> [!TIP]
+> If you want to run the optimization directly, you can check out section [4.4.](#44-quick-run-on-the-command-line-interface). The following content is just for visualizing the optimization steps and is not necessary to run the optimization script.
+
+#### 4.5.1. Data Collection
+```bash
+jupyter notebook notebooks/01_data_collection.ipynb
+```
+
+#### 4.5.2. Analysis Pipeline
+```bash
+# Execute notebooks in order:
+jupyter notebook notebooks/02_location_analysis.ipynb
+jupyter notebook notebooks/03_enhancement_analysis.ipynb
+jupyter notebook notebooks/04_data_preparation.ipynb
+```
+
+### 4.6. Running the Optimization
+
 The optimization can also be executed using a Jupyter Notebook. This method emphasizes immediate visualization of results.
 
 > [!NOTE] 
-> This notebook does not include predefined cells or code for saving outputs. However, you can add cells to save your results as needed. Only the optimization script in section [4.5.1.](#451-command-line-interface) saves the results as outlined in section [4.5.2.](#452-output-structure)
+> This notebook does not include predefined cells or code for saving outputs. However, you can add cells to save your results as needed. Currently, only the optimization script in section [4.4.](#44-quick-run-on-the-command-line-interface) saves a results pacakge as outlined.
 
 ```bash
 jupyter notebook notebooks/05_optimization_model.ipynb
 ```
 
-### 4.6. Results Analysis
+### 4.7. Results Analysis
 
-#### 4.6.1. Solution Visualization
+#### 4.7.1. Solution Visualization
 - Interactive maps showing:
   - Current coverage
   - Proposed changes
   - Implementation phases
   - Service areas
 
-#### 4.6.2. Performance Metrics
+#### 4.7.2. Performance Metrics
 - Coverage improvement
 - Cost efficiency
 - Implementation timeline

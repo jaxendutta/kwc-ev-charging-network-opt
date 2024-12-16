@@ -55,6 +55,7 @@ from ratelimit import limits, sleep_and_retry
 from tqdm import tqdm
 from scipy.spatial.distance import pdist
 import zipfile
+from tabulate import tabulate
 
 from .constants import *
 from .utils import *
@@ -169,6 +170,13 @@ class DataManager:
             'ROUTE_ID': 'Transit route identifier',
             'StopID': 'Transit stop identifier',
             'StopName': 'Transit stop name'
+        }
+
+        # Data collection methods mapping
+        self.data_collection_methods = {
+            'population': self.get_population_data,
+            'charging_stations': self.fetch_charging_stations,
+            'potential_locations': self.fetch_potential_locations,
         }
 
     #
@@ -806,8 +814,8 @@ class DataManager:
             cache_key = 'potential_locations'
             cached_data = self._get_from_cache(cache_key)
             if cached_data is not None:
-                print("\033[1mFetching Potential Locations...\033[0m")
-                print("=" * 60)
+                print("\n🚚 Fetching Potential Locations...")
+                print("-" * OUTPUT_WIDTH)
                 print(f"📦 Loaded {len(cached_data)} cached locations"
                       f" from {self.cache_index['entries'][cache_key]['timestamp']}")
                 return cached_data
@@ -927,8 +935,8 @@ class DataManager:
         Fetch charging stations from OpenChargeMap API with robust error handling.
         """
         try:
-            print("\033[1mFetching Charging Stations...\033[0m")
-            print("=" * 60)
+            print("\n🚚 Fetching Charging Stations...")
+            print("-" * OUTPUT_WIDTH)
             
             # Make API request
             params = {
@@ -1044,18 +1052,24 @@ class DataManager:
             # Print summary
             print(f"\n📊 Charging Station Summary:")
             print("-" * 50)
-            print(f"Total API Results: {len(data)}")
-            print(f"Successfully Processed: {len(stations)}")
-            print(f"Skipped Records: {skipped}")
-            print(f"Within CMA Boundary: {len(df)}")
+            print(f"Total API Results:      {len(data):>20}")
+            print(f"Successfully Processed: {len(stations):>20}")
+            print(f"Skipped Records:        {skipped:>20}")
+            print(f"Within CMA Boundary:    {len(df):>20}")
             
             print("\nBy Charger Type:")
-            for type_name, count in df['charger_type'].value_counts().items():
-                print(f"  \033[94m●\033[0m {type_name}: {count}")
+            df_charger_types = df['charger_type'].copy()
+            df_charger_types = "\033[94m●\033[0m " + df_charger_types
+            charger_counts = df_charger_types.value_counts().items()
+            table = tabulate(charger_counts, headers=["Charger Type", "Count"], tablefmt="grid")
+            print(table)
             
             print("\nBy Operator:")
-            for operator, count in df['operator'].value_counts().head().items():
-                print(f"  \033[92m●\033[0m {operator}: {count}")
+            df_operators = df['operator'].copy()
+            df_operators = "\033[92m●\033[0m " + df_operators
+            operator_counts = df_operators.value_counts().head().items()
+            table = tabulate(operator_counts, headers=["Operator", "Count"], tablefmt="grid")
+            print(table)
             
             return df
             
@@ -1537,12 +1551,12 @@ class DataManager:
 
     def get_population_data(self) -> gpd.GeoDataFrame:
         try:
-            print("\033[1mCollecting Population Data from Available Sources\033[0m")
-            print("=" * 50)
+            print("\n🚚 Collecting Population Data from Available Sources...")
+            print("-" * OUTPUT_WIDTH)
 
             # 1. Primary Data (Region of Waterloo Census)
-            print("\n1️⃣\xa0Region of Waterloo Census Data:")
-            print("-" * 40)
+            print("\n1️⃣ - Region of Waterloo Census Data:")
+            print("-" * OUTPUT_WIDTH)
             primary_data = self.fetch_data('census', 'housing', 'geojson')
 
             primary_data['data_source'] = 'Region of Waterloo'
@@ -1568,14 +1582,14 @@ class DataManager:
             avg_density = total_pop / total_area
             
             print("    📊 Regional Summary:")
-            print("    " + "-" * 36)
+            print("    " + "-" * (OUTPUT_WIDTH - 6))
             print(f"    Total Population: {total_pop:,.0f}")
             print(f"    Total Area: {total_area:.1f} km²")
             print(f"    Average Regional Density: {avg_density:.1f} people/km²")
             
             # 2. Statistics Canada Data
-            print("\n2️⃣\xa0Statistics Canada Data:")
-            print("-" * 40)
+            print("\n2️⃣ - Statistics Canada Data:")
+            print("-" * OUTPUT_WIDTH)
             try:
                 statcan_data = self._fetch_statcan_data()
                 statcan_pop = int(statcan_data.iloc[1, 1].replace(',', ''))  # Extract the population value and convert to integer
@@ -1586,8 +1600,8 @@ class DataManager:
                 statcan_pop = 0
             
             # 3. UN Data
-            print("\n3️⃣\xa0UN Population Data:")
-            print("-" * 40)
+            print("\n3️⃣ - UN Population Data:")
+            print("-" * OUTPUT_WIDTH)
             try:
                 un_data = self._fetch_un_data()
                 if not un_data.empty:
@@ -1612,15 +1626,14 @@ class DataManager:
             
             primary_data.loc[primary_data['data_source'] == 'Region of Waterloo', 'confidence_score'] = confidence_score
             
-            print("\n📊 Source Comparison Summary:")
-            print("-" * 50)
-            print(f"Region of Waterloo: {total_pop:,.0f}")
+            print(make_header("🌍 Population Data Summary", '-'))
+            print(f"Region of Waterloo: {total_pop:>{int(OUTPUT_WIDTH/4)},.0f}")
             if statcan_pop > 0:
-                print(f"Statistics Canada: {statcan_pop:,.0f}")
+                print(f"Statistics Canada: {statcan_pop:>{int(OUTPUT_WIDTH/4)},.0f}")
             if un_pop > 0:
-                print(f"UN Data: {un_pop:,.0f}")
+                print(f"UN Data: {un_pop:>{int(OUTPUT_WIDTH/4)},.0f}")
             
-            print(f"\nConfidence Score: {confidence_score:.2f}")
+            print(f"\nConfidence Score: {confidence_score:>{int(OUTPUT_WIDTH/4)}.2f}")
             
             return primary_data
         
@@ -3064,38 +3077,68 @@ class DataManager:
     #
     # Optimization Preparation Methods
     #
-    def prepare_optimization_data(self) -> Dict[str, Union[pd.DataFrame, np.ndarray]]:
-        """Prepare data structures for optimization model."""
+    def check_optimization_data(self, data_type: str, file_type: str) -> Any:
+        """
+        Check if optimization data is available for a specific type.
+        Collect data if not found
+        """
         try:
-            print("\n📊 Preparing Optimization Model Data")
-            print("=" * 50)
-            
-            # 1. Load Base Data
-            print("\n🔄 OPT-PREP-STEP 1.1: LOADING BASE DATA...\n")
-            logging.getLogger('data.data_manager').setLevel(logging.WARNING)
-            population = self.get_population_data()
-            
-            print("\n📊 OPT-PREP-STEP 1.2: LOADING CHARGING STATIONS...\n")
-            stations = self.fetch_charging_stations()
+            # Check if data is already available
+            data_path = DATA_PATHS[data_type]
+        
+            try:
+                data_file, timestamp = get_latest_file(data_path, file_type)
+                print(f"📦 Found {data_type} data from {timestamp}!")
+                print(f"📂 {data_file}")
+                data = self.data_collection_methods[data_type]()
 
+            except FileNotFoundError:
+                print(f"⚠️  No {data_type} data found in {data_path}!")
+                print(f"🔄  Starting data collection...")
+                delay_message()
+                data = self.data_collection_methods[data_type]()
+                save_data(data, data_type, file_type)
+                print(f"💾 Saved {data_type} data to {data_path}")
+            
+            return data
+            
+        except Exception as e:
+            logger.error(f"Error checking optimization data: {str(e)}")
+            return False
+
+    def prepare_optimization_data(self) -> Dict[str, Any]:
+        """Prepare optimization input data, collecting if needed."""
+        try:
+            print(make_header("📊 Preparing Optimization Data".upper(), '='))
+
+            # Step 1: Population Data
+            print(make_header("🔄 OPT-PREP-STEP 1.1: LOADING BASE DATA...", '-'))
+            population = self.check_optimization_data('population', 'geojson')
+
+            # Step 2: Charging Stations
+            print(make_header("📊 OPT-PREP-STEP 1.2: LOADING CHARGING STATIONS...", '-'))
+            stations = self.check_optimization_data('charging_stations', 'csv')
             # Substitute unknown charger types to Level 2
             print("\nSubstituting unknown charger types to Level 2...")
             stations.loc[stations['charger_type'] == 'Unknown', 'charger_type'] = 'Level 2'
             print(f"New charger type distribution:\n{stations['charger_type'].value_counts()}")
-            
-            print("\n🏢 OPT-PREP-STEP 1.3: LOADING POTENTIAL LOCATIONS...\n")
-            potential_df = self.fetch_potential_locations()
 
+            # Step 3: Potential Locations
+            print(make_header("🏢 OPT-PREP-STEP 1.3: LOADING POTENTIAL LOCATIONS...", '-'))
+            potential = self.check_optimization_data('potential_locations', 'csv')
+
+            # Print summary of loaded data
             print("\n📊 OPT-SUMMARY 1: DATA LOADED")
             print("-" * 50)
             print(f"Population Areas: {len(population)}")
             print(f"Charging Stations: {len(stations)}")
-            print(f"Potential Locations: {len(potential_df)}")
+            print(f"Potential Locations: {len(potential)}")
 
-            print("\n" + "=" * 50 + "\n")
+            print("\n" + "=" * 50)
 
-            # 2. Process Demand Points
-            print("📍 OPT-PREP-STEP 2: PROCESSING DEMAND POINTS...")
+            # Step 4: Process Demand Points
+            print(make_header("📍 OPT-PREP-STEP 2: PROCESSING DEMAND POINTS...", '-'))
+            
             valid_pop = population[
                 (population['data_source'] == 'Region of Waterloo') &
                 population.geometry.notna() &
@@ -3130,15 +3173,14 @@ class DataManager:
             
             print(f"✓ Processed {len(demand_points)} demand points!")
 
-            print("\n" + "=" * 50 + "\n")
-
-            # 3. Process Potential Sites
-            print("🎯 OPT-PREP-STEP 3: PROCESSING POTENTIAL SITES...")
-            potential_sites = potential_df.copy()
-            potential_sites['site_id'] = range(len(potential_df))
-
+            # Step 5: Process Sites
+            print(make_header("🎯 OPT-PREP-STEP 3: PROCESSING POTENTIAL SITES...", '-'))
+            potential_sites = potential.copy()
+            potential_sites['site_id'] = range(len(potential))
             # Calculate site scores efficiently using vectorized operations
             print("Calculating site accessibility scores...")
+            
+            # Convert to GeoDataFrame for scoring
             sites_gdf = gpd.GeoDataFrame(
                 potential_sites,
                 geometry=gpd.points_from_xy(
@@ -3148,14 +3190,19 @@ class DataManager:
                 crs="EPSG:4326"
             ).to_crs("EPSG:32617")
             
-            scores = self.calculate_accessibility_scores_batch(sites_gdf)
-            potential_sites['score'] = scores
+            try:
+                scores = self.calculate_accessibility_scores_batch(sites_gdf)
+                potential_sites['score'] = scores
+            except Exception as e:
+                logger.warning(f"⚠️  Could not calculate accessibility scores: {str(e)}")
+                logger.warning("Using simplified scoring instead...")
+                # Fallback to simple scoring if transportation network analysis fails
+                potential_sites['score'] = 0.5  # Default neutral score
+
             print(f"✓ Processed {len(potential_sites)} potential sites!")
 
-            print("\n" + "=" * 50 + "\n")
-
-            # 4. Calculate distance matrices
-            print("📏 OPT-PREP-STEP 4: CALCULATING DISTANCE MATRICES...")
+            # Step 6: Calculate Distances
+            print(make_header("📏 OPT-PREP-STEP 4: CALCULATING DISTANCE MATRICES...", '-'))
 
             # Create GeoDataFrames in UTM for accurate distances
             sites_gdf = gpd.GeoDataFrame(
@@ -3184,14 +3231,14 @@ class DataManager:
                 ),
                 crs="EPSG:4326"
             ).to_crs("EPSG:32617")
-
-            distances = np.zeros((len(sites_gdf), len(demand_gdf)))
             with tqdm(total=len(sites_gdf), desc="Site-to-Demand Distance") as pbar:
+                distances = np.zeros((len(sites_gdf), len(demand_points)))
                 for i, site in enumerate(sites_gdf.geometry):
                     for j, demand in enumerate(demand_gdf.geometry):
                         distances[i, j] = site.distance(demand) / 1000  # Convert to km
                     pbar.update(1)
-
+            
+            # Print matrix info
             print(f"\nMatrix Dimensions:")
             print(f"- Distance matrix: {distances.shape}")
             print(f"- Number of stations: {len(stations_gdf)}")
@@ -3199,7 +3246,7 @@ class DataManager:
             print(f"- Number of potential sites: {len(sites_gdf)}")
 
             # In prepare_optimization_data, after calculating distances
-            print("\nDistance Statistics:")
+            print(f"\nDistance Statistics:")
             print(f"- Mean distance: {np.mean(distances):.2f} km")
             print(f"- Max distance: {np.max(distances):.2f} km")
             print(f"- Min distance: {np.min(distances):.2f} km")
@@ -3212,12 +3259,13 @@ class DataManager:
             # Calculate theoretical maximum coverage
             l2_possible = np.any(distances <= config['coverage']['l2_radius'], axis=0)
             l3_possible = np.any(distances <= config['coverage']['l3_radius'], axis=0)
+
             print(f"\nTheoretical Coverage Possible with respect to:")
             print(f" - Unlimited Budget")
-            print(f" - Unlimited Site Capacity")
-            print(f" - Unlimited Grid Capacity")
-            print(f" - Unlimited Charging Speed")
-            print(f" - Available Potential Sites")
+            print(f" - Existing Site Capacity")
+            print(f" - Existing Grid Capacity")
+            print(f" - Existing Charging Speed")
+            print(f" - Existing Potential Sites")
             print(f"\nWe could achieve:")
             print(f" - L2 Stations (with only L2 charging ports): {np.mean(l2_possible):.2%}")
             print(f" - L3 Stations (with L2 & L3 charging ports): {np.mean(l3_possible):.2%}")
@@ -3228,7 +3276,7 @@ class DataManager:
                 'potential_sites': potential_sites,
                 'distance_matrix': distances
             }
-                
+
         except Exception as e:
             logger.error(f"❌ Error preparing optimization data: {str(e)}")
             raise
