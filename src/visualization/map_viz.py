@@ -383,7 +383,12 @@ def map_population_density(m: folium.Map,
             max_zoom=13,
             radius=25,  # Adjust for smoother/sharper heatmap
             blur=15,    # Adjust for smoother/sharper heatmap
-            gradient={0.4: 'blue', 0.65: 'lime', 0.8: 'yellow', 1: 'red'}
+            gradient={
+                '0.4': 'blue',
+                '0.65': 'lime',
+                '0.8': 'yellow',
+                '1': 'red'
+            }
         ).add_to(m)
 
     return m
@@ -520,7 +525,7 @@ def plot_housing_patterns(m: folium.Map, population_data: gpd.GeoDataFrame) -> f
         geo_data=population_data.__geo_interface__,
         name='Property Values',
         data=population_data,
-        columns=['CTUID', 'HHLD_DWELL_VALUE_MED'],
+        columns=['OBJECTID', 'HHLD_DWELL_VALUE_MED'],
         key_on='feature.properties.CTUID',
         fill_color='YlOrRd',
         fill_opacity=0.7,

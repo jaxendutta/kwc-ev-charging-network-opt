@@ -251,7 +251,7 @@ def create_results_map(solution: Dict[str, Any],
     }
     
     # Create feature groups for different station types
-    layers = {status: folium.FeatureGroup(name=str(status)+'Stations')
+    layers = {status: folium.FeatureGroup(name=str(status) + ' Stations')
              for status in status_colors.keys()}
     
     # Initialize counts
