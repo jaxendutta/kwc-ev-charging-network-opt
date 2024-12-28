@@ -115,6 +115,7 @@ def run_optimization(scenario: Optional[str] = None, output_dir: str = None):
 
         # Coverage map
         m = create_results_map(solution, config, stations_df)
+        m = draw_map(m)
         print("✓ Coverage map created!")
 
         # Save visualizations

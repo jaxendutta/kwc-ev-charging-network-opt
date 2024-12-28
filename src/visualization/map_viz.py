@@ -23,6 +23,7 @@ def draw_map(m: folium.Map):
     folium.plugins.Fullscreen().add_to(m)
 
     display(m)
+    return m
 
 def create_kwc_map(title: Optional[str] = None, kwc: Optional[bool] = False) -> folium.Map:
     """Create a base map of KW region."""
